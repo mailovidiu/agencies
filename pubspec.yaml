@@ -2,7 +2,7 @@ name: govt_departments_and_agencies
 description: "Directory of U.S. Government Departments and Agencies"
 publish_to: "none"
 
-version: 3.0.0+13
+version: 3.0.0+15
 
 environment:
   sdk: ^3.6.0
