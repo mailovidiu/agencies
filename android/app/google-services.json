@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "795440992614",
+    "project_id": "u-s-departments-and-age-gnkn5k",
+    "storage_bucket": "u-s-departments-and-age-gnkn5k.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:795440992614:android:fc1cecb1ca1885f74b78a7",
+        "android_client_info": {
+          "package_name": "com.trendmobileapp.usdepartmentsandagencies"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKkjujp86K09K2aOeSxnch3j2-W-WfKNU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:795440992614:android:fce9430ec7d30d514b78a7",
+        "android_client_info": {
+          "package_name": "com.trendmobileapp.usgovdepandagen"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKkjujp86K09K2aOeSxnch3j2-W-WfKNU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
