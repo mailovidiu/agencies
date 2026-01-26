@@ -19,6 +19,7 @@ class AdManager {
   DateTime? _lastInterstitialShow;
   DateTime? _lastAppOpenShow;
   bool _isInitialized = false;
+  int _interactionCount = 0;
 
   // Initialize ads based on consent
   Future<void> initialize() async {
@@ -277,6 +278,19 @@ class AdManager {
   }
 
   Future<void> showInterstitialAd() async {
+    _interactionCount++;
+    if (kDebugMode) {
+      print('Interaction count: $_interactionCount');
+    }
+
+    // Only show ad on every 5th interaction
+    if (_interactionCount % 5 != 0) {
+      if (kDebugMode) {
+        print('Skipping interstitial ad - interaction $_interactionCount (target multiple of 5)');
+      }
+      return;
+    }
+
     if (!canShowInterstitialAd()) {
       return;
     }

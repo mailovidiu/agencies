@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../models/department.dart';
 import '../providers/department_provider.dart';
 import '../openai/openai_config.dart';
 import '../ads/ad_manager.dart';
+import '../ads/native_ad_view.dart';
 
 /// Detailed view screen for a government department or agency
 class DepartmentDetailScreen extends StatefulWidget {
@@ -26,10 +28,13 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
   final TextEditingController _questionController = TextEditingController();
   final List<Map<String, String>> _qaHistory = [];
   bool _isLoadingAnswer = false;
-  
+  final ScrollController _scrollController = ScrollController();
+  bool _isScrolled = false;
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     // Show interstitial ad when entering detail screen (with frequency control)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -38,148 +43,310 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     });
   }
 
+  void _onScroll() {
+    if (_scrollController.hasClients) {
+      final isScrolled = _scrollController.offset > 180;
+      if (isScrolled != _isScrolled) {
+        setState(() {
+          _isScrolled = isScrolled;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _questionController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    // Access theme data
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
 
     return Consumer<DepartmentProvider>(
       builder: (context, provider, child) {
         final isFavorite = provider.isFavorite(widget.department.id);
-        
+
         return Scaffold(
+          backgroundColor: colorScheme.surface,
           body: CustomScrollView(
+            controller: _scrollController,
             slivers: [
-              // App Bar with department header
+              // Premium Header
               SliverAppBar(
-                expandedHeight: 250.0,
+                expandedHeight: 320.0,
                 floating: false,
                 pinned: true,
+                stretch: true,
                 backgroundColor: colorScheme.primary,
-                foregroundColor: colorScheme.onPrimary,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
+                scrolledUnderElevation: 0,
+                elevation: 0,
+                leading: IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          colorScheme.primary,
-                          colorScheme.primary.withValues(alpha: 0.8),
-                        ],
-                      ),
+                      color: _isScrolled ? Colors.transparent : Colors.black26,
+                      shape: BoxShape.circle,
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 40), // Account for status bar
-                        // Department icon
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: colorScheme.onPrimary.withValues(alpha: 0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            _getCategoryIcon(widget.department.category),
-                            size: 48,
-                            color: colorScheme.onPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Department name
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: const Icon(Icons.arrow_back, color: Colors.white),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                flexibleSpace: FlexibleSpaceBar(
+                  stretchModes: const [
+                    StretchMode.zoomBackground,
+                    StretchMode.blurBackground,
+                  ],
+                  expandedTitleScale: 1.0, // Keep title fixed size when collapsed
+                  titlePadding: EdgeInsets.zero,
+                  title: _isScrolled
+                      ? Container(
+                          color: colorScheme.primary, // Solid background when collapsed
+                          padding: const EdgeInsets.fromLTRB(50, 0, 16, 14),
+                          alignment: Alignment.bottomCenter,
+                          height: kToolbarHeight + MediaQuery.of(context).padding.top,
                           child: Text(
                             widget.department.name,
-                            style: textTheme.headlineSmall?.copyWith(
-                              color: colorScheme.onPrimary,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
-                            textAlign: TextAlign.center,
-                            softWrap: true,
-                            overflow: TextOverflow.visible,
+                          ),
+                        )
+                      : null, // No title when expanded, we use the custom background content
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Gradient Background
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              colorScheme.primary,
+                              colorScheme.tertiary,
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      // Decorative Pattern/Mesh
+                      Positioned(
+                        top: -50,
+                        right: -50,
+                        child: Container(
+                          width: 200,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: -30,
+                        left: -30,
+                        child: Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      
+                      // Content Overlay
+                      SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const SizedBox(height: 16),
+                              // Large Icon Container
+                              Hero(
+                                tag: 'dept_icon_${widget.department.id}',
+                                child: Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.3),
+                                      width: 1,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.1),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 10),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    _getCategoryIcon(widget.department.category),
+                                    size: 64,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              // Department Name
+                              Text(
+                                widget.department.name,
+                                style: textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.2,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withValues(alpha: 0.2),
+                                      offset: const Offset(0, 2),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 12),
+                              // Category Badge in Header
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                child: Text(
+                                  widget.department.category.displayName,
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 actions: [
-                  // Favorite button
-                  IconButton(
-                    onPressed: () {
-                      provider.toggleFavorite(widget.department.id);
-                    },
-                    icon: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.red : colorScheme.onPrimary,
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    child: IconButton(
+                      onPressed: () {
+                        provider.toggleFavorite(widget.department.id);
+                      },
+                      style: IconButton.styleFrom(
+                        backgroundColor: _isScrolled ? Colors.transparent : Colors.black26,
+                      ),
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                        child: Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          key: ValueKey(isFavorite),
+                          color: isFavorite ? Colors.redAccent : Colors.white,
+                        ),
+                      ),
+                      tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
                     ),
-                    tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
                   ),
                 ],
               ),
-              
-              // Content
+
+              // Body Content
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Department category badge
-                      _buildCategoryBadge(context),
-                      const SizedBox(height: 16),
-                      
-                      // Description
-                      _buildDescriptionSection(context),
-                      const SizedBox(height: 24),
-                      
-                      // AI Summary
-                      _buildAISummarySection(context),
-                      const SizedBox(height: 24),
-                      
-                      // Contact Information
-                      _buildContactSection(context),
-                      const SizedBox(height: 24),
-                      
-                      // Services
-                      if (widget.department.services.isNotEmpty) ...[
-                        _buildServicesSection(context),
-                        const SizedBox(height: 24),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  transform: Matrix4.translationValues(0, -20, 0), // Slight overlap with header
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Quick Actions & Stats
+                        _buildQuickStats(context),
+                        const SizedBox(height: 32),
+
+                        // About Section
+                        _buildSectionHeader(context, 'About', Icons.info_outline),
+                        const SizedBox(height: 12),
+                        Text(
+                          widget.department.description,
+                          style: textTheme.bodyLarge?.copyWith(
+                            height: 1.6,
+                            color: colorScheme.onSurface.withValues(alpha: 0.8),
+                          ),
+                        ),
+                        if (widget.department.tags.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: widget.department.tags.map((tag) => _buildTag(context, tag)).toList(),
+                          ),
+                        ],
+                        const SizedBox(height: 32),
+
+                        // AI Summary Section - Premium Feature
+                        _buildAISummarySection(context),
+                        const SizedBox(height: 32),
+
+                        // Contact Information
+                        _buildSectionHeader(context, 'Contact Information', Icons.contact_phone_outlined),
+                        const SizedBox(height: 16),
+                        _buildContactSection(context),
+                        const SizedBox(height: 32),
+
+                        // Services
+                        if (widget.department.services.isNotEmpty) ...[
+                          _buildSectionHeader(context, 'Services & Programs', Icons.supervised_user_circle_outlined),
+                          const SizedBox(height: 16),
+                          _buildServicesSection(context),
+                          const SizedBox(height: 32),
+                        ],
+
+                        // Office Hours
+                        if (widget.department.officeHours != null) ...[
+                          _buildSectionHeader(context, 'Office Hours', Icons.access_time_outlined),
+                          const SizedBox(height: 16),
+                          _buildOfficeHoursSection(context),
+                          const SizedBox(height: 32),
+                        ],
+
+                        // Location
+                        if (widget.department.location != null) ...[
+                          _buildSectionHeader(context, 'Location', Icons.location_on_outlined),
+                          const SizedBox(height: 16),
+                          _buildLocationSection(context),
+                          const SizedBox(height: 32),
+                        ],
+
+                        // Q&A Assistant
+                        _buildQASection(context),
+                        
+                        const SizedBox(height: 32),
+                        const NativeAdView(factoryId: 'medium'),
+                        const SizedBox(height: 32),
+
                       ],
-                      
-                      // Office Hours
-                      if (widget.department.officeHours != null) ...[
-                        _buildOfficeHoursSection(context),
-                        const SizedBox(height: 24),
-                      ],
-                      
-                      // Location
-                      if (widget.department.location != null) ...[
-                        _buildLocationSection(context),
-                        const SizedBox(height: 24),
-                      ],
-                      
-                      // Tags
-                      if (widget.department.tags.isNotEmpty) ...[
-                        _buildTagsSection(context),
-                        const SizedBox(height: 24),
-                      ],
-                      
-                      // Q&A Assistant
-                      _buildQASection(context),
-                      const SizedBox(height: 24),
-                      
-                      // Additional Info
-                      _buildAdditionalInfoSection(context),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -190,218 +357,321 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     );
   }
 
-  Widget _buildCategoryBadge(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
+  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _getCategoryIcon(widget.department.category),
-                size: 16,
-                color: colorScheme.onPrimaryContainer,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                widget.department.category.displayName,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Spacer(),
-        if (widget.department.isPopular)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.star, size: 14, color: Colors.orange),
-                const SizedBox(width: 4),
-                Text(
-                  'Popular',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: Colors.orange[700],
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildDescriptionSection(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+        Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 10),
         Text(
-          'About',
-          style: textTheme.headlineSmall?.copyWith(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          widget.department.description,
-          style: textTheme.bodyLarge?.copyWith(
-            height: 1.5,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildContactSection(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+  Widget _buildQuickStats(BuildContext context) {
+    return Row(
+      children: [
+        if (widget.department.isPopular)
+          Expanded(
+            child: _buildStatCard(
+              context, 
+              'Popular', 
+              Icons.trending_up, 
+              Colors.orange.shade100, 
+              Colors.orange.shade800
+            ),
+          ),
+        if (widget.department.isPopular) const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            context, 
+            widget.department.isActive ? 'Active' : 'Inactive',
+            widget.department.isActive ? Icons.check_circle : Icons.cancel,
+            widget.department.isActive ? Colors.green.shade100 : Colors.grey.shade200,
+            widget.department.isActive ? Colors.green.shade800 : Colors.grey.shade700,
+          ),
+        ),
+      ],
+    );
+  }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.contact_phone, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Contact Information',
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+  Widget _buildStatCard(BuildContext context, String label, IconData icon, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: bg),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: fg),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: fg,
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(height: 16),
-            
-            // Phone
-            _buildContactItem(
-              context,
-              Icons.phone,
-              'Phone',
-              widget.department.contactInfo.phone,
-              onTap: () => _launchPhone(widget.department.contactInfo.phone),
-            ),
-            const SizedBox(height: 12),
-            
-            // Email
-            _buildContactItem(
-              context,
-              Icons.email,
-              'Email',
-              widget.department.contactInfo.email,
-              onTap: () => _launchEmail(widget.department.contactInfo.email),
-            ),
-            const SizedBox(height: 12),
-            
-            // Website
-            _buildContactItem(
-              context,
-              Icons.language,
-              'Website',
-              _extractDomain(widget.department.contactInfo.website),
-              onTap: () => _launchWebsite(widget.department.contactInfo.website),
-            ),
-            
-            // Fax (if available)
-            if (widget.department.contactInfo.fax != null) ...[
-              const SizedBox(height: 12),
-              _buildContactItem(
-                context,
-                Icons.fax,
-                'Fax',
-                widget.department.contactInfo.fax!,
-              ),
-            ],
-            
-            // Address
-            const SizedBox(height: 12),
-            _buildContactItem(
-              context,
-              Icons.location_on,
-              'Address',
-              widget.department.contactInfo.address,
-              onTap: () => _launchMaps(widget.department.contactInfo.address),
-            ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTag(BuildContext context, String tag) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        tag,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
   }
 
-  Widget _buildContactItem(
-    BuildContext context,
-    IconData icon,
-    String label,
+  Widget _buildAISummarySection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.primaryContainer.withValues(alpha: 0.4),
+            colorScheme.surface,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.auto_awesome, color: colorScheme.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI Summary',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'Powered by OpenAI',
+                    style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.outline),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              if (!_isLoadingSummary && _aiSummary == null)
+                FilledButton.tonalIcon(
+                  onPressed: _generateSummary,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                  label: const Text('Generate'),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_isLoadingSummary)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    const CircularProgressIndicator(strokeWidth: 3),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Analyzing department data...',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (_aiSummary != null)
+            Column(
+              children: [
+                Text(
+                  _aiSummary!,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _generateSummary,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Regenerate'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: colorScheme.secondary,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _copyToClipboard(context, _aiSummary!),
+                      icon: const Icon(Icons.copy, size: 18),
+                      label: const Text('Copy'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: colorScheme.secondary,
+                      ),
+                    ),
+                  ],
+                )
+              ],
+            )
+          else
+            Text(
+              'Get a quick, AI-generated overview of this department\'s key functions and services.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactSection(BuildContext context) {
+    return Column(
+      children: [
+        _buildContactTile(
+          context,
+          Icons.phone_outlined,
+          'Phone',
+          widget.department.contactInfo.phone,
+          onTap: () => _launchPhone(widget.department.contactInfo.phone),
+          isPrimary: true,
+        ),
+        const SizedBox(height: 12),
+        _buildContactTile(
+          context,
+          Icons.email_outlined,
+          'Email',
+          widget.department.contactInfo.email,
+          onTap: () => _launchEmail(widget.department.contactInfo.email),
+        ),
+        const SizedBox(height: 12),
+        _buildContactTile(
+          context,
+          Icons.language,
+          'Website',
+          _extractDomain(widget.department.contactInfo.website),
+          onTap: () => _launchWebsite(widget.department.contactInfo.website),
+        ),
+        if (widget.department.contactInfo.fax != null) ...[
+          const SizedBox(height: 12),
+          _buildContactTile(
+            context,
+            Icons.fax_outlined,
+            'Fax',
+            widget.department.contactInfo.fax!,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildContactTile(
+    BuildContext context, 
+    IconData icon, 
+    String label, 
     String value, {
     VoidCallback? onTap,
+    bool isPrimary = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
+    
     return InkWell(
       onTap: onTap,
       onLongPress: () => _copyToClipboard(context, value),
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isPrimary 
+              ? colorScheme.primaryContainer.withValues(alpha: 0.3)
+              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(16),
+          border: isPrimary 
+              ? Border.all(color: colorScheme.primary.withValues(alpha: 0.2))
+              : null,
+        ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: colorScheme.onSurface.withValues(alpha: 0.7),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isPrimary ? colorScheme.primary : colorScheme.surface,
+                shape: BoxShape.circle,
+                boxShadow: isPrimary 
+                  ? [BoxShadow(color: colorScheme.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))]
+                  : null,
+              ),
+              child: Icon(
+                icon, 
+                size: 20, 
+                color: isPrimary ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     label,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.7),
-                      fontWeight: FontWeight.w500,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     value,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: onTap != null ? colorScheme.primary : null,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isPrimary ? colorScheme.primary : colorScheme.onSurface,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
             if (onTap != null)
               Icon(
-                Icons.open_in_new,
-                size: 16,
-                color: colorScheme.onSurface.withValues(alpha: 0.5),
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
               ),
           ],
         ),
@@ -410,576 +680,339 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
   }
 
   Widget _buildServicesSection(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.work, color: colorScheme.primary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Services & Programs',
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...widget.department.services.map((service) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: widget.department.services.asMap().entries.map((entry) {
+          final isLast = entry.key == widget.department.services.length - 1;
+          return Column(
             children: [
-              Icon(
-                Icons.check_circle_outline,
-                size: 20,
-                color: colorScheme.primary,
+              ListTile(
+                leading: const Icon(Icons.check_circle, size: 20, color: Colors.green),
+                title: Text(entry.value),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                visualDensity: VisualDensity.compact,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  service,
-                  style: textTheme.bodyMedium,
+              if (!isLast)
+                Divider(
+                  height: 1, 
+                  indent: 56, 
+                  endIndent: 16, 
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.1)
                 ),
-              ),
             ],
-          ),
-        )).toList(),
-      ],
+          );
+        }).toList(),
+      ),
     );
   }
 
   Widget _buildOfficeHoursSection(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-    final officeHours = widget.department.officeHours!;
+    final theme = Theme.of(context);
+    final hours = widget.department.officeHours!;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hours.isOpen24x7)
             Row(
               children: [
-                Icon(Icons.access_time, color: colorScheme.primary),
+                const Icon(Icons.check_circle, color: Colors.green, size: 20),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Office Hours',
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                Text(
+                  'Open 24/7',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
+            )
+          else
+            ...hours.weeklyHours.entries.map((entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1),
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    entry.value,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            )),
             
-            if (officeHours.isOpen24x7)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.all_inclusive, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Open 24/7',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              ...officeHours.weeklyHours.entries.map((entry) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1),
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        entry.value,
-                        style: textTheme.bodyMedium,
-                      ),
-                    ),
-                  ],
-                ),
-              )).toList(),
-            
-            if (officeHours.specialInstructions != null) ...[
+            if (hours.specialInstructions != null) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
+                  color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 16,
-                          color: colorScheme.onSecondaryContainer,
+                    Icon(Icons.info_outline, size: 18, color: theme.colorScheme.onSecondaryContainer),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        hours.specialInstructions!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSecondaryContainer,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Special Instructions',
-                          style: textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onSecondaryContainer,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      officeHours.specialInstructions!,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSecondaryContainer,
                       ),
                     ),
                   ],
                 ),
               ),
             ],
-          ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildLocationSection(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     final location = widget.department.location!;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.location_on, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Location',
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+            // Using an image placeholder or map snapshot could be cool here
+            Container(
+              height: 100,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.map_outlined, 
+                  size: 40,
+                  color: theme.colorScheme.onTertiaryContainer.withValues(alpha: 0.5),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              location.formattedAddress,
-              style: textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: () => _launchMaps(location.formattedAddress),
-              icon: const Icon(Icons.map),
-              label: const Text('Open in Maps'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 44),
               ),
             ),
+             Padding(
+               padding: const EdgeInsets.all(16),
+               child: Column(
+                 crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+                   Row(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       Icon(Icons.location_on, color: theme.colorScheme.primary, size: 20),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: Text(
+                           location.formattedAddress,
+                           style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                         ),
+                       ),
+                     ],
+                   ),
+                   const SizedBox(height: 16),
+                   FilledButton.icon(
+                     onPressed: () => _launchMaps(location.formattedAddress),
+                     icon: const Icon(Icons.directions),
+                     label: const Text('Get Directions'),
+                     style: FilledButton.styleFrom(
+                       minimumSize: const Size(double.infinity, 44),
+                     ),
+                   ),
+                 ],
+               ),
+             ),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildTagsSection(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
+  
+  Widget _buildQASection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Tags',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: widget.department.tags.map((tag) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              tag,
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          )).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAdditionalInfoSection(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Additional Information',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            
-            _buildInfoRow(context, 'Department ID', widget.department.id),
-            const SizedBox(height: 8),
-            
-            _buildInfoRow(context, 'Status', widget.department.isActive ? 'Active' : 'Inactive'),
-            
-            if (widget.department.createdAt != null) ...[
-              const SizedBox(height: 8),
-              _buildInfoRow(
-                context, 
-                'Established', 
-                _formatDate(widget.department.createdAt!),
+        _buildSectionHeader(context, 'Ask AI Assistant', Icons.chat_bubble_outline),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
-            
-            if (widget.department.lastUpdated != null) ...[
-              const SizedBox(height: 8),
-              _buildInfoRow(
-                context, 
-                'Last Updated', 
-                _formatDate(widget.department.lastUpdated!),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(BuildContext context, String label, String value) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurface.withValues(alpha: 0.7),
-              fontWeight: FontWeight.w500,
-            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            value,
-            style: textTheme.bodyMedium,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAISummarySection(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.auto_awesome, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'AI-Generated Summary',
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (!_isLoadingSummary && _aiSummary == null)
-                  TextButton.icon(
-                    onPressed: _generateSummary,
-                    icon: const Icon(Icons.auto_awesome),
-                    label: const Text('Generate'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            
-            if (_isLoadingSummary)
-              const Center(
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 8),
-                    Text('Generating AI summary...'),
-                  ],
-                ),
-              )
-            else if (_aiSummary != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
-                    ),
-                    child: Text(
-                      _aiSummary!,
-                      style: textTheme.bodyMedium?.copyWith(height: 1.5),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
+          child: Column(
+            children: [
+              // Chat Display Area
+              if (_qaHistory.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  alignment: Alignment.center,
+                  child: Column(
                     children: [
-                      TextButton.icon(
-                        onPressed: _generateSummary,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Regenerate'),
+                      Icon(Icons.forum_outlined, size: 40, color: colorScheme.secondary.withValues(alpha: 0.3)),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Have a question about this department?',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                      TextButton.icon(
-                        onPressed: () => _copyToClipboard(context, _aiSummary!),
-                        icon: const Icon(Icons.copy),
-                        label: const Text('Copy'),
+                      Text(
+                        'Ask our AI assistant for instant help',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                        ),
                       ),
                     ],
                   ),
-                ],
-              )
-            else
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceVariant.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)),
-                ),
-                child: Column(
+                )
+              else
+                Column(
                   children: [
-                    Icon(
-                      Icons.auto_awesome_outlined,
-                      size: 32,
-                      color: colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Generate an AI-powered summary to get key insights about this department',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQASection(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.help_outline, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Ask Questions',
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            
-            // Question input
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _questionController,
-                    decoration: InputDecoration(
-                      hintText: 'Ask about services, hours, contact info...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      prefixIcon: const Icon(Icons.question_answer),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    ),
-                    onSubmitted: (_) => _askQuestion(),
-                    enabled: !_isLoadingAnswer,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _isLoadingAnswer ? null : _askQuestion,
-                  icon: _isLoadingAnswer 
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
-                  tooltip: 'Ask question',
-                ),
-              ],
-            ),
-            
-            if (_qaHistory.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 12),
-              
-              // Q&A History
-              ...(_qaHistory.reversed.take(3).map((qa) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Question
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
+                    ..._qaHistory.reversed.take(2).map((qa) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.person,
-                            size: 16,
-                            color: colorScheme.onSecondaryContainer,
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(16),
+                                  topRight: Radius.circular(4),
+                                  bottomLeft: Radius.circular(16),
+                                  bottomRight: Radius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                qa['question']!,
+                                style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onPrimary),
+                              ),
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              qa['question']!,
-                              style: textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: colorScheme.onSecondaryContainer,
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.secondaryContainer,
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(4),
+                                  topRight: Radius.circular(16),
+                                  bottomLeft: Radius.circular(16),
+                                  bottomRight: Radius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                qa['answer']!,
+                                style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSecondaryContainer),
                               ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    
-                    // Answer
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
+                    )),
+                    if (_qaHistory.length > 2)
+                      TextButton(
+                        onPressed: () => _showFullQAHistory(context),
+                        child: Text('View all ${_qaHistory.length} messages'),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.smart_toy,
-                            size: 16,
-                            color: colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              qa['answer']!,
-                              style: textTheme.bodyMedium?.copyWith(height: 1.4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    const Divider(height: 32),
                   ],
                 ),
-              )).toList()),
               
-              if (_qaHistory.length > 3)
-                TextButton(
-                  onPressed: () => _showFullQAHistory(context),
-                  child: Text('View all ${_qaHistory.length} questions'),
-                ),
+              const SizedBox(height: 12),
+              
+              // Input Area
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _questionController,
+                      decoration: InputDecoration(
+                        hintText: 'Type your question...',
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                      ),
+                      onSubmitted: (_) => _askQuestion(),
+                      enabled: !_isLoadingAnswer,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: _isLoadingAnswer ? null : _askQuestion,
+                      color: colorScheme.onPrimary,
+                      icon: _isLoadingAnswer 
+                        ? SizedBox(
+                            width: 20, 
+                            height: 20, 
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2, 
+                              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
+                            )
+                          )
+                        : const Icon(Icons.send_rounded, size: 20),
+                    ),
+                  ),
+                ],
+              ),
             ],
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
+
+
+
+
+  // Helper Methods (Logic kept from original file)
+  
   Future<void> _generateSummary() async {
     if (_isLoadingSummary) return;
     
@@ -1073,59 +1106,107 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        minChildSize: 0.3,
+        initialChildSize: 0.8,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
         builder: (context, scrollController) => Container(
-          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
+              const SizedBox(height: 12),
+              Container( // Drag handle
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Text(
                       'Q&A History',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
               Expanded(
                 child: ListView.separated(
                   controller: scrollController,
                   itemCount: _qaHistory.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  separatorBuilder: (context, index) => const SizedBox(height: 24),
                   itemBuilder: (context, index) {
                     final qa = _qaHistory.reversed.toList()[index];
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(qa['question']!),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                              child: const Icon(Icons.person, size: 16),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                  borderRadius: const BorderRadius.only(
+                                    topRight: Radius.circular(16),
+                                    bottomLeft: Radius.circular(16),
+                                    bottomRight: Radius.circular(16),
+                                  ),
+                                ),
+                                child: Text(qa['question']!),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)),
-                          ),
-                          child: Text(qa['answer']!),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(width: 30), // Indent for answer
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(16),
+                                    bottomLeft: Radius.circular(16),
+                                    bottomRight: Radius.circular(16),
+                                  ),
+                                ),
+                                child: Text(qa['answer']!),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              child: Icon(Icons.auto_awesome, size: 16, color: Theme.of(context).colorScheme.onPrimary),
+                            ),
+                          ],
                         ),
                       ],
                     );
@@ -1185,9 +1266,7 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     }
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
+
 
   void _launchPhone(String phone) async {
     final uri = Uri.parse('tel:$phone');

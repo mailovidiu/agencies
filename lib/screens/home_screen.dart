@@ -36,7 +36,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DepartmentProvider>().initialize();
     });
-    _searchController.addListener(_onSearchChanged);
+
+    // _searchController.addListener(_onSearchChanged); // Removed for manual search trigger
     _scrollController.addListener(_onScroll);
     _fabAnimationController = AnimationController(
       vsync: this,
@@ -46,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
+    // _searchController.removeListener(_onSearchChanged); // Removed for manual search trigger
     _searchController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
@@ -64,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
   }
 
-  void _onSearchChanged() {
+  void _performSearch() {
     final query = _searchController.text;
     setState(() {
       _showSearchResults = query.isNotEmpty;
@@ -172,16 +173,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ),
         child: FlexibleSpaceBar(
-          title: Text(
-            'US Government',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
-          ),
           centerTitle: false,
-          titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
           background: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -217,6 +209,81 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.05),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 20,
+                  left: 20,
+                  right: 20,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      style: const TextStyle(fontSize: 16),
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _performSearch(),
+                      decoration: InputDecoration(
+                        hintText: 'Search departments and agencies...',
+                        hintStyle: TextStyle(
+                          color: Colors.grey.shade400,
+                          fontSize: 16,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Colors.grey.shade400,
+                          size: 24,
+                        ),
+                        suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _searchController,
+                          builder: (context, value, child) {
+                            return Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (value.text.isNotEmpty)
+                                    IconButton(
+                                      icon: Icon(Icons.clear, color: Colors.grey.shade400),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() {
+                                          _showSearchResults = false;
+                                        });
+                                        context.read<DepartmentProvider>().clearFilters();
+                                      },
+                                    ),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.search, color: Colors.white, size: 20),
+                                      onPressed: _performSearch,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 18,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -355,51 +422,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Modern Search Bar
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: _searchController,
-                style: const TextStyle(fontSize: 16),
-                decoration: InputDecoration(
-                  hintText: 'Search departments and agencies...',
-                  hintStyle: TextStyle(
-                    color: Colors.grey.shade400,
-                    fontSize: 16,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 24,
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear, color: Colors.grey.shade400),
-                          onPressed: () {
-                            _searchController.clear();
-                            context.read<DepartmentProvider>().clearFilters();
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 18,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
             // Welcome Text
             Text(
               'Explore Federal Services',
@@ -1065,6 +1087,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   onPressed: () {
                     _searchController.clear();
                     provider.clearFilters();
+                    setState(() {
+                      _showSearchResults = false;
+                    });
                   },
                   icon: const Icon(Icons.clear, size: 18),
                   label: const Text('Clear'),
