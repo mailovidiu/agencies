@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/consent_service.dart';
+import '../services/notification_service.dart';
+import '../models/department.dart';
 import '../ads/ad_manager.dart';
 import '../ads/ad_helper.dart';
 
@@ -15,11 +17,28 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _appVersion = 'Loading...';
+  bool _notificationsEnabled = true;
+  Map<DepartmentCategory, bool> _categorySubscriptions = {};
+  bool _loadingNotifications = true;
 
   @override
   void initState() {
     super.initState();
     _loadAppVersion();
+    _loadNotificationPreferences();
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    final service = NotificationService();
+    final enabled = await service.areNotificationsEnabled();
+    final subs = await service.getAllCategorySubscriptions();
+    if (mounted) {
+      setState(() {
+        _notificationsEnabled = enabled;
+        _categorySubscriptions = subs;
+        _loadingNotifications = false;
+      });
+    }
   }
 
   Future<void> _loadAppVersion() async {
@@ -272,6 +291,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 onTap: _showAdPreferencesDialog,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Notification Preferences Section
+            Text(
+              'Notification Preferences',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            Card(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    secondary: Icon(
+                      Icons.notifications_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    title: const Text('Push Notifications'),
+                    subtitle: Text(
+                      _notificationsEnabled
+                          ? 'Receiving department update alerts'
+                          : 'Notifications are disabled',
+                    ),
+                    value: _notificationsEnabled,
+                    onChanged: (value) async {
+                      await NotificationService().setNotificationsEnabled(value);
+                      setState(() {
+                        _notificationsEnabled = value;
+                      });
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              value
+                                  ? 'Notifications enabled'
+                                  : 'Notifications disabled',
+                            ),
+                            backgroundColor:
+                                Theme.of(context).colorScheme.primary,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  if (_notificationsEnabled && !_loadingNotifications) ...[
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Subscribe to categories',
+                          style:
+                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
+                                  ),
+                        ),
+                      ),
+                    ),
+                    ...DepartmentCategory.values.map((category) {
+                      final subscribed =
+                          _categorySubscriptions[category] ?? true;
+                      return SwitchListTile(
+                        title: Text(
+                          category.displayName,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        value: subscribed,
+                        dense: true,
+                        onChanged: (value) async {
+                          await NotificationService()
+                              .setCategorySubscription(category, value);
+                          setState(() {
+                            _categorySubscriptions[category] = value;
+                          });
+                        },
+                      );
+                    }),
+                  ],
+                ],
               ),
             ),
 

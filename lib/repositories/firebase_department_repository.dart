@@ -8,17 +8,25 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   final String _collection = 'departments';
 
+  Map<String, dynamic> _buildWritePayload(
+    Department department, {
+    required bool isCreate,
+  }) {
+    final payload = department.toFirestore();
+    payload['lastUpdated'] = FieldValue.serverTimestamp();
+    if (isCreate && !payload.containsKey('createdAt')) {
+      payload['createdAt'] = FieldValue.serverTimestamp();
+    }
+    return payload;
+  }
+
   @override
   Future<List<Department>> getDepartments() async {
     try {
-      final snapshot = await _firestore
-          .collection(_collection)
-          .orderBy('name')
-          .get();
+      final snapshot =
+          await _firestore.collection(_collection).orderBy('name').get();
 
-      return snapshot.docs
-          .map((doc) => Department.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => Department.fromFirestore(doc)).toList();
     } catch (e) {
       print('Error getting departments: $e');
       return [];
@@ -28,10 +36,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   @override
   Future<Department?> getDepartmentById(String id) async {
     try {
-      final doc = await _firestore
-          .collection(_collection)
-          .doc(id)
-          .get();
+      final doc = await _firestore.collection(_collection).doc(id).get();
 
       if (doc.exists) {
         return Department.fromFirestore(doc);
@@ -46,10 +51,8 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   @override
   Future<void> addDepartment(Department department) async {
     try {
-      await _firestore
-          .collection(_collection)
-          .doc(department.id)
-          .set(department.toFirestore());
+      final payload = _buildWritePayload(department, isCreate: true);
+      await _firestore.collection(_collection).doc(department.id).set(payload);
     } catch (e) {
       print('Error adding department: $e');
       rethrow;
@@ -59,10 +62,11 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   @override
   Future<void> updateDepartment(Department department) async {
     try {
+      final payload = _buildWritePayload(department, isCreate: false);
       await _firestore
           .collection(_collection)
           .doc(department.id)
-          .update(department.toFirestore());
+          .update(payload);
     } catch (e) {
       print('Error updating department: $e');
       rethrow;
@@ -72,10 +76,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   @override
   Future<void> deleteDepartment(String id) async {
     try {
-      await _firestore
-          .collection(_collection)
-          .doc(id)
-          .delete();
+      await _firestore.collection(_collection).doc(id).delete();
     } catch (e) {
       print('Error deleting department: $e');
       rethrow;
@@ -94,11 +95,13 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
 
       return departments.where((dept) {
         return dept.name.toLowerCase().contains(lowercaseQuery) ||
-               dept.shortName.toLowerCase().contains(lowercaseQuery) ||
-               dept.description.toLowerCase().contains(lowercaseQuery) ||
-               dept.services.any((service) => service.toLowerCase().contains(lowercaseQuery)) ||
-               dept.keywords.any((keyword) => keyword.toLowerCase().contains(lowercaseQuery)) ||
-               dept.tags.any((tag) => tag.toLowerCase().contains(lowercaseQuery));
+            dept.shortName.toLowerCase().contains(lowercaseQuery) ||
+            dept.description.toLowerCase().contains(lowercaseQuery) ||
+            dept.services.any(
+                (service) => service.toLowerCase().contains(lowercaseQuery)) ||
+            dept.keywords.any(
+                (keyword) => keyword.toLowerCase().contains(lowercaseQuery)) ||
+            dept.tags.any((tag) => tag.toLowerCase().contains(lowercaseQuery));
       }).toList();
     } catch (e) {
       print('Error searching departments: $e');
@@ -107,7 +110,8 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   }
 
   @override
-  Future<List<Department>> getDepartmentsByCategory(DepartmentCategory category) async {
+  Future<List<Department>> getDepartmentsByCategory(
+      DepartmentCategory category) async {
     try {
       final snapshot = await _firestore
           .collection(_collection)
@@ -115,9 +119,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
           .orderBy('name')
           .get();
 
-      return snapshot.docs
-          .map((doc) => Department.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => Department.fromFirestore(doc)).toList();
     } catch (e) {
       print('Error getting departments by category: $e');
       return [];
@@ -133,9 +135,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
           .orderBy('name')
           .get();
 
-      return snapshot.docs
-          .map((doc) => Department.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => Department.fromFirestore(doc)).toList();
     } catch (e) {
       print('Error getting departments by tag: $e');
       return [];
@@ -146,12 +146,12 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   Future<void> createDepartments(List<Department> departments) async {
     try {
       final batch = _firestore.batch();
-      
+
       for (final department in departments) {
         final docRef = _firestore.collection(_collection).doc(department.id);
-        batch.set(docRef, department.toFirestore());
+        batch.set(docRef, _buildWritePayload(department, isCreate: true));
       }
-      
+
       await batch.commit();
     } catch (e) {
       print('Error creating departments: $e');
@@ -168,9 +168,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
           .orderBy('name')
           .get();
 
-      return snapshot.docs
-          .map((doc) => Department.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => Department.fromFirestore(doc)).toList();
     } catch (e) {
       print('Error getting popular departments: $e');
       return [];
@@ -180,9 +178,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   @override
   Future<List<Department>> getDepartmentsByParent(String? parentId) async {
     try {
-      Query query = _firestore
-          .collection(_collection)
-          .orderBy('name');
+      Query query = _firestore.collection(_collection).orderBy('name');
 
       if (parentId != null) {
         query = query.where('parentDepartmentId', isEqualTo: parentId);
@@ -192,9 +188,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
 
       final snapshot = await query.get();
 
-      return snapshot.docs
-          .map((doc) => Department.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => Department.fromFirestore(doc)).toList();
     } catch (e) {
       print('Error getting departments by parent: $e');
       return [];
@@ -210,9 +204,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
           .orderBy('name')
           .get();
 
-      return snapshot.docs
-          .map((doc) => Department.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => Department.fromFirestore(doc)).toList();
     } catch (e) {
       print('Error getting active departments: $e');
       return [];
@@ -220,7 +212,8 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   }
 
   /// Get recently updated departments (for admin dashboard)
-  Future<List<Department>> getRecentlyUpdatedDepartments({int limit = 10}) async {
+  Future<List<Department>> getRecentlyUpdatedDepartments(
+      {int limit = 10}) async {
     try {
       final snapshot = await _firestore
           .collection(_collection)
@@ -229,9 +222,7 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
           .limit(limit)
           .get();
 
-      return snapshot.docs
-          .map((doc) => Department.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => Department.fromFirestore(doc)).toList();
     } catch (e) {
       print('Error getting recently updated departments: $e');
       return [];
@@ -242,9 +233,11 @@ class FirebaseDepartmentRepository implements DepartmentRepository {
   Future<Map<String, int>> getDepartmentStats() async {
     try {
       final allDepts = await _firestore.collection(_collection).get();
-      final activeDepts = allDepts.docs.where((doc) => doc.data()['isActive'] == true);
-      final popularDepts = allDepts.docs.where((doc) => doc.data()['isPopular'] == true);
-      
+      final activeDepts =
+          allDepts.docs.where((doc) => doc.data()['isActive'] == true);
+      final popularDepts =
+          allDepts.docs.where((doc) => doc.data()['isPopular'] == true);
+
       final categoryStats = <String, int>{};
       for (final doc in activeDepts) {
         final category = doc.data()['category'] as String?;

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../firebase_options.dart';
 import 'firebase_service.dart';
 import 'firebase_admin_service.dart';
+import 'notification_service.dart';
 import '../utils/data_migration.dart';
 import '../repositories/firebase_department_repository.dart';
 
@@ -41,6 +42,13 @@ class FirebaseInitializationService {
       
       // Step 4: Initialize Firebase Admin Service
       await FirebaseAdminService().initialize();
+      
+      // Step 4.5: Initialize Notification Service (FCM)
+      try {
+        await NotificationService().initialize();
+      } catch (e) {
+        print('⚠️  Notification service warning: $e');
+      }
       
       // Step 5: Handle initial data migration/setup
       await _handleDataInitialization();

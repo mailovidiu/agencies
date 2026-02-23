@@ -16,12 +16,12 @@ class Department {
   final DateTime? lastUpdated;
   final DateTime? createdAt;
   // New fields for enhanced agency management
-  final String? logoPath;           // Local path to logo image
+  final String? logoPath; // Local path to logo image
   final String? parentDepartmentId; // Reference to parent department
-  final List<String> tags;          // Tags for better organization
-  final Location? location;         // Geographic location details
-  final OfficeHours? officeHours;   // Operating hours information
-  final bool isPopular;             // Whether this department is marked as popular
+  final List<String> tags; // Tags for better organization
+  final Location? location; // Geographic location details
+  final OfficeHours? officeHours; // Operating hours information
+  final bool isPopular; // Whether this department is marked as popular
 
   const Department({
     required this.id,
@@ -46,8 +46,9 @@ class Department {
   /// Create Department from JSON
   factory Department.fromJson(Map<String, dynamic> json) {
     // Generate ID if not provided
-    final departmentId = json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
-    
+    final departmentId =
+        json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
+
     // Handle contact info - support both nested and flat structures
     Map<String, dynamic> contactInfoJson;
     if (json['contactInfo'] != null) {
@@ -61,7 +62,7 @@ class Department {
         'address': json['location']?['address'] ?? '',
       };
     }
-    
+
     return Department(
       id: departmentId,
       name: json['name'] ?? '',
@@ -75,21 +76,24 @@ class Department {
       services: List<String>.from(json['services'] ?? []),
       keywords: List<String>.from(json['keywords'] ?? []),
       isActive: json['isActive'] ?? true,
-      lastUpdated: json['lastUpdated'] != null 
-          ? (json['lastUpdated'] is Timestamp 
+      lastUpdated: json['lastUpdated'] != null
+          ? (json['lastUpdated'] is Timestamp
               ? (json['lastUpdated'] as Timestamp).toDate()
               : DateTime.tryParse(json['lastUpdated']))
           : null,
-      createdAt: json['createdAt'] != null 
-          ? (json['createdAt'] is Timestamp 
+      createdAt: json['createdAt'] != null
+          ? (json['createdAt'] is Timestamp
               ? (json['createdAt'] as Timestamp).toDate()
               : DateTime.tryParse(json['createdAt']))
           : DateTime.now(),
       logoPath: json['logoPath'],
       parentDepartmentId: json['parentDepartmentId'],
       tags: List<String>.from(json['tags'] ?? []),
-      location: json['location'] != null ? Location.fromJson(json['location']) : null,
-      officeHours: json['officeHours'] != null ? OfficeHours.fromJson(json['officeHours']) : null,
+      location:
+          json['location'] != null ? Location.fromJson(json['location']) : null,
+      officeHours: json['officeHours'] != null
+          ? OfficeHours.fromJson(json['officeHours'])
+          : null,
       isPopular: json['isPopular'] ?? false,
     );
   }
@@ -106,8 +110,8 @@ class Department {
       'services': services,
       'keywords': keywords,
       'isActive': isActive,
-      'lastUpdated': lastUpdated?.toIso8601String(),
-      'createdAt': createdAt?.toIso8601String(),
+      if (lastUpdated != null) 'lastUpdated': lastUpdated!.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
       if (logoPath != null) 'logoPath': logoPath,
       if (parentDepartmentId != null) 'parentDepartmentId': parentDepartmentId,
       'tags': tags,
@@ -127,7 +131,7 @@ class Department {
   Map<String, dynamic> toFirestore() {
     final json = toJson();
     json.remove('id'); // Firestore document ID is handled separately
-    
+
     // Convert DateTime to Firestore Timestamp
     if (lastUpdated != null) {
       json['lastUpdated'] = Timestamp.fromDate(lastUpdated!);
@@ -135,7 +139,7 @@ class Department {
     if (createdAt != null) {
       json['createdAt'] = Timestamp.fromDate(createdAt!);
     }
-    
+
     return json;
   }
 
@@ -189,7 +193,8 @@ class Department {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() => 'Department(id: $id, name: $name, shortName: $shortName)';
+  String toString() =>
+      'Department(id: $id, name: $name, shortName: $shortName)';
 }
 
 /// Contact information for a department
@@ -218,7 +223,7 @@ class ContactInfo {
       website: json['website'] ?? '',
       address: json['address'] ?? '',
       fax: json['fax'],
-      socialMedia: json['socialMedia'] != null 
+      socialMedia: json['socialMedia'] != null
           ? Map<String, String>.from(json['socialMedia'])
           : null,
     );
@@ -435,16 +440,18 @@ class Location {
   }
 
   @override
-  String toString() => 'Location(address: $address, city: $city, state: $state)';
+  String toString() =>
+      'Location(address: $address, city: $city, state: $state)';
 }
 
 /// Office hours information for a department
 class OfficeHours {
-  final Map<String, String> weeklyHours; // e.g., {"monday": "9:00 AM - 5:00 PM"}
-  final List<String> holidays;           // List of holiday dates or descriptions
-  final String? specialInstructions;     // Additional notes about hours
-  final bool isOpen24x7;                 // Whether the department operates 24/7
-  final String? emergencyContact;        // Contact for after-hours emergencies
+  final Map<String, String>
+      weeklyHours; // e.g., {"monday": "9:00 AM - 5:00 PM"}
+  final List<String> holidays; // List of holiday dates or descriptions
+  final String? specialInstructions; // Additional notes about hours
+  final bool isOpen24x7; // Whether the department operates 24/7
+  final String? emergencyContact; // Contact for after-hours emergencies
 
   const OfficeHours({
     required this.weeklyHours,
@@ -468,7 +475,8 @@ class OfficeHours {
     return {
       'weeklyHours': weeklyHours,
       'holidays': holidays,
-      if (specialInstructions != null) 'specialInstructions': specialInstructions,
+      if (specialInstructions != null)
+        'specialInstructions': specialInstructions,
       'isOpen24x7': isOpen24x7,
       if (emergencyContact != null) 'emergencyContact': emergencyContact,
     };
@@ -493,9 +501,17 @@ class OfficeHours {
   /// Get today's hours based on current day of week
   String getTodaysHours() {
     final today = DateTime.now().weekday;
-    final dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    final dayNames = [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday'
+    ];
     final todayName = dayNames[today - 1];
-    
+
     if (isOpen24x7) return '24/7';
     return weeklyHours[todayName] ?? 'Closed';
   }
@@ -503,17 +519,18 @@ class OfficeHours {
   /// Check if currently open based on current time
   bool get isCurrentlyOpen {
     if (isOpen24x7) return true;
-    
+
     final now = DateTime.now();
     final todayHours = getTodaysHours();
-    
+
     if (todayHours == 'Closed') return false;
-    
+
     // Simple check - in a real app you'd parse the time ranges
     // and compare with current time
     return todayHours.isNotEmpty && todayHours != 'Closed';
   }
 
   @override
-  String toString() => 'OfficeHours(isOpen24x7: \$isOpen24x7, weeklyHours: \$weeklyHours)';
+  String toString() =>
+      'OfficeHours(isOpen24x7: \$isOpen24x7, weeklyHours: \$weeklyHours)';
 }

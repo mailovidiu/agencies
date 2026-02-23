@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import GoogleMobileAds
 import google_mobile_ads
+import GoogleMaps
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -9,6 +10,7 @@ import google_mobile_ads
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    GMSServices.provideAPIKey("AIzaSyDV8vQ78L4OJFgaoylf6GHNpXBHjfllJBQ")
     GeneratedPluginRegistrant.register(with: self)
     
     // Register Native Ad Factories

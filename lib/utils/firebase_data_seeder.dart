@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/department.dart';
 
@@ -11,9 +10,10 @@ class FirebaseDataSeeder {
   Future<void> seedDatabase() async {
     try {
       print('🌱 Starting Firebase data seeding...');
-      
+
       // Check if data already exists
-      final existingDepts = await _firestore.collection('departments').limit(1).get();
+      final existingDepts =
+          await _firestore.collection('departments').limit(1).get();
       if (existingDepts.docs.isNotEmpty) {
         print('📊 Database already contains data, skipping seed');
         return;
@@ -21,10 +21,10 @@ class FirebaseDataSeeder {
 
       // Seed departments
       await _seedDepartments();
-      
+
       // Seed app settings
       await _seedAppSettings();
-      
+
       print('✅ Firebase data seeding completed successfully');
     } catch (e) {
       print('❌ Firebase data seeding failed: $e');
@@ -36,14 +36,14 @@ class FirebaseDataSeeder {
   Future<void> _seedDepartments() async {
     final departments = _getSampleDepartments();
     final batch = _firestore.batch();
-    
+
     print('📋 Seeding ${departments.length} departments...');
-    
+
     for (final department in departments) {
       final docRef = _firestore.collection('departments').doc(department.id);
       batch.set(docRef, department.toFirestore());
     }
-    
+
     await batch.commit();
     print('✅ Departments seeded successfully');
   }
@@ -51,7 +51,7 @@ class FirebaseDataSeeder {
   /// Seed app settings collection
   Future<void> _seedAppSettings() async {
     print('⚙️ Seeding app settings...');
-    
+
     final settings = {
       'app_version': {
         'key': 'app_version',
@@ -80,12 +80,12 @@ class FirebaseDataSeeder {
     };
 
     final batch = _firestore.batch();
-    
+
     for (final entry in settings.entries) {
-      final docRef = _firestore.collection('settings').doc(entry.key);
+      final docRef = _firestore.collection('app_settings').doc(entry.key);
       batch.set(docRef, entry.value);
     }
-    
+
     await batch.commit();
     print('✅ App settings seeded successfully');
   }
@@ -97,7 +97,8 @@ class FirebaseDataSeeder {
         id: 'hhs',
         name: 'Department of Health and Human Services',
         shortName: 'HHS',
-        description: 'The United States Department of Health and Human Services is a cabinet-level executive branch department of the U.S. federal government with the goal of protecting the health of all Americans and providing essential human services.',
+        description:
+            'The United States Department of Health and Human Services is a cabinet-level executive branch department of the U.S. federal government with the goal of protecting the health of all Americans and providing essential human services.',
         category: DepartmentCategory.health,
         contactInfo: const ContactInfo(
           phone: '(202) 690-7000',
@@ -112,10 +113,28 @@ class FirebaseDataSeeder {
           'Medical research funding',
           'Social services coordination'
         ],
-        keywords: const ['health', 'medicare', 'medicaid', 'CDC', 'FDA', 'NIH', 'healthcare', 'medical research'],
+        keywords: const [
+          'health',
+          'medicare',
+          'medicaid',
+          'CDC',
+          'FDA',
+          'NIH',
+          'healthcare',
+          'medical research'
+        ],
         isActive: true,
         isPopular: true,
         tags: const ['healthcare', 'social-services', 'research'],
+        location: const Location(
+          address: '200 Independence Avenue SW',
+          city: 'Washington',
+          state: 'DC',
+          zipCode: '20201',
+          country: 'USA',
+          latitude: 38.8863,
+          longitude: -77.0146,
+        ),
         createdAt: DateTime(2024, 1, 15, 10, 0),
         lastUpdated: DateTime(2024, 1, 15, 10, 0),
       ),
@@ -123,7 +142,8 @@ class FirebaseDataSeeder {
         id: 'ed',
         name: 'Department of Education',
         shortName: 'ED',
-        description: 'The United States Department of Education is a Cabinet-level department of the United States government. It began operating on May 4, 1980, having been created after the Department of Health, Education, and Welfare was split into the Department of Education and the Department of Health and Human Services.',
+        description:
+            'The United States Department of Education is a Cabinet-level department of the United States government. It began operating on May 4, 1980, having been created after the Department of Health, Education, and Welfare was split into the Department of Education and the Department of Health and Human Services.',
         category: DepartmentCategory.education,
         contactInfo: const ContactInfo(
           phone: '(202) 401-2000',
@@ -138,10 +158,27 @@ class FirebaseDataSeeder {
           'Special education support',
           'Teacher preparation programs'
         ],
-        keywords: const ['education', 'student loans', 'grants', 'schools', 'universities', 'teachers', 'learning'],
+        keywords: const [
+          'education',
+          'student loans',
+          'grants',
+          'schools',
+          'universities',
+          'teachers',
+          'learning'
+        ],
         isActive: true,
         isPopular: true,
         tags: const ['education', 'students', 'funding'],
+        location: const Location(
+          address: '400 Maryland Avenue SW',
+          city: 'Washington',
+          state: 'DC',
+          zipCode: '20202',
+          country: 'USA',
+          latitude: 38.8847,
+          longitude: -77.0164,
+        ),
         createdAt: DateTime(2024, 1, 15, 10, 15),
         lastUpdated: DateTime(2024, 1, 15, 10, 15),
       ),
@@ -149,7 +186,8 @@ class FirebaseDataSeeder {
         id: 'epa',
         name: 'Environmental Protection Agency',
         shortName: 'EPA',
-        description: 'The Environmental Protection Agency is an independent executive agency of the United States federal government tasked with environmental protection matters.',
+        description:
+            'The Environmental Protection Agency is an independent executive agency of the United States federal government tasked with environmental protection matters.',
         category: DepartmentCategory.environment,
         contactInfo: const ContactInfo(
           phone: '(202) 564-4700',
@@ -164,10 +202,27 @@ class FirebaseDataSeeder {
           'Waste management oversight',
           'Environmental research'
         ],
-        keywords: const ['environment', 'pollution', 'air quality', 'water', 'chemicals', 'climate', 'sustainability'],
+        keywords: const [
+          'environment',
+          'pollution',
+          'air quality',
+          'water',
+          'chemicals',
+          'climate',
+          'sustainability'
+        ],
         isActive: true,
         isPopular: false,
         tags: const ['environment', 'regulation', 'protection'],
+        location: const Location(
+          address: '1200 Pennsylvania Avenue NW',
+          city: 'Washington',
+          state: 'DC',
+          zipCode: '20460',
+          country: 'USA',
+          latitude: 38.8938,
+          longitude: -77.0289,
+        ),
         createdAt: DateTime(2024, 1, 15, 10, 30),
         lastUpdated: DateTime(2024, 1, 15, 10, 30),
       ),
@@ -175,7 +230,8 @@ class FirebaseDataSeeder {
         id: 'dot',
         name: 'Department of Transportation',
         shortName: 'DOT',
-        description: 'The United States Department of Transportation is a federal Cabinet department of the U.S. government concerned with transportation.',
+        description:
+            'The United States Department of Transportation is a federal Cabinet department of the U.S. government concerned with transportation.',
         category: DepartmentCategory.transportation,
         contactInfo: const ContactInfo(
           phone: '(202) 366-4000',
@@ -190,10 +246,27 @@ class FirebaseDataSeeder {
           'Railroad oversight',
           'Maritime transportation'
         ],
-        keywords: const ['transportation', 'highways', 'aviation', 'trains', 'public transit', 'infrastructure', 'safety'],
+        keywords: const [
+          'transportation',
+          'highways',
+          'aviation',
+          'trains',
+          'public transit',
+          'infrastructure',
+          'safety'
+        ],
         isActive: true,
         isPopular: false,
         tags: const ['transportation', 'infrastructure', 'safety'],
+        location: const Location(
+          address: '1200 New Jersey Avenue SE',
+          city: 'Washington',
+          state: 'DC',
+          zipCode: '20590',
+          country: 'USA',
+          latitude: 38.8785,
+          longitude: -77.0013,
+        ),
         createdAt: DateTime(2024, 1, 15, 10, 45),
         lastUpdated: DateTime(2024, 1, 15, 10, 45),
       ),
@@ -201,7 +274,8 @@ class FirebaseDataSeeder {
         id: 'va',
         name: 'Department of Veterans Affairs',
         shortName: 'VA',
-        description: 'The United States Department of Veterans Affairs is a government-run military veteran benefit system with Cabinet-level status.',
+        description:
+            'The United States Department of Veterans Affairs is a government-run military veteran benefit system with Cabinet-level status.',
         category: DepartmentCategory.veterans,
         contactInfo: const ContactInfo(
           phone: '(202) 461-4800',
@@ -216,10 +290,27 @@ class FirebaseDataSeeder {
           'Home loans',
           'Career counseling'
         ],
-        keywords: const ['veterans', 'healthcare', 'benefits', 'disability', 'education', 'military', 'service'],
+        keywords: const [
+          'veterans',
+          'healthcare',
+          'benefits',
+          'disability',
+          'education',
+          'military',
+          'service'
+        ],
         isActive: true,
         isPopular: true,
         tags: const ['veterans', 'benefits', 'healthcare'],
+        location: const Location(
+          address: '810 Vermont Avenue NW',
+          city: 'Washington',
+          state: 'DC',
+          zipCode: '20420',
+          country: 'USA',
+          latitude: 38.9010,
+          longitude: -77.0338,
+        ),
         createdAt: DateTime(2024, 1, 15, 11, 0),
         lastUpdated: DateTime(2024, 1, 15, 11, 0),
       ),
@@ -227,7 +318,8 @@ class FirebaseDataSeeder {
         id: 'dod',
         name: 'Department of Defense',
         shortName: 'DoD',
-        description: 'The United States Department of Defense is an executive branch department of the federal government charged with coordinating and supervising all agencies and functions of the government directly related to national security and the United States Armed Forces.',
+        description:
+            'The United States Department of Defense is an executive branch department of the federal government charged with coordinating and supervising all agencies and functions of the government directly related to national security and the United States Armed Forces.',
         category: DepartmentCategory.defense,
         contactInfo: const ContactInfo(
           phone: '(703) 571-3343',
@@ -242,10 +334,26 @@ class FirebaseDataSeeder {
           'Intelligence coordination',
           'International security cooperation'
         ],
-        keywords: const ['defense', 'military', 'security', 'armed forces', 'pentagon', 'national security'],
+        keywords: const [
+          'defense',
+          'military',
+          'security',
+          'armed forces',
+          'pentagon',
+          'national security'
+        ],
         isActive: true,
         isPopular: false,
         tags: const ['defense', 'military', 'security'],
+        location: const Location(
+          address: '1400 Defense Pentagon',
+          city: 'Washington',
+          state: 'DC',
+          zipCode: '20301',
+          country: 'USA',
+          latitude: 38.8719,
+          longitude: -77.0563,
+        ),
         createdAt: DateTime(2024, 1, 15, 11, 15),
         lastUpdated: DateTime(2024, 1, 15, 11, 15),
       ),
@@ -253,7 +361,8 @@ class FirebaseDataSeeder {
         id: 'doj',
         name: 'Department of Justice',
         shortName: 'DOJ',
-        description: 'The United States Department of Justice is a federal executive department of the United States government tasked with the enforcement of federal law and administration of justice in the United States.',
+        description:
+            'The United States Department of Justice is a federal executive department of the United States government tasked with the enforcement of federal law and administration of justice in the United States.',
         category: DepartmentCategory.justice,
         contactInfo: const ContactInfo(
           phone: '(202) 514-2000',
@@ -268,10 +377,26 @@ class FirebaseDataSeeder {
           'Federal prosecution',
           'Legal counsel to government'
         ],
-        keywords: const ['justice', 'FBI', 'law enforcement', 'civil rights', 'immigration', 'prosecution'],
+        keywords: const [
+          'justice',
+          'FBI',
+          'law enforcement',
+          'civil rights',
+          'immigration',
+          'prosecution'
+        ],
         isActive: true,
         isPopular: false,
         tags: const ['justice', 'law-enforcement', 'civil-rights'],
+        location: const Location(
+          address: '950 Pennsylvania Avenue NW',
+          city: 'Washington',
+          state: 'DC',
+          zipCode: '20530',
+          country: 'USA',
+          latitude: 38.8935,
+          longitude: -77.0252,
+        ),
         createdAt: DateTime(2024, 1, 15, 11, 30),
         lastUpdated: DateTime(2024, 1, 15, 11, 30),
       ),
@@ -279,7 +404,8 @@ class FirebaseDataSeeder {
         id: 'treasury',
         name: 'Department of the Treasury',
         shortName: 'Treasury',
-        description: 'The Department of the Treasury is the national treasury and finance department of the federal government of the United States.',
+        description:
+            'The Department of the Treasury is the national treasury and finance department of the federal government of the United States.',
         category: DepartmentCategory.finance,
         contactInfo: const ContactInfo(
           phone: '(202) 622-2000',
@@ -294,10 +420,27 @@ class FirebaseDataSeeder {
           'Financial regulation',
           'Economic policy development'
         ],
-        keywords: const ['treasury', 'IRS', 'taxes', 'currency', 'finance', 'revenue', 'economic policy'],
+        keywords: const [
+          'treasury',
+          'IRS',
+          'taxes',
+          'currency',
+          'finance',
+          'revenue',
+          'economic policy'
+        ],
         isActive: true,
         isPopular: true,
         tags: const ['finance', 'taxes', 'economy'],
+        location: const Location(
+          address: '1500 Pennsylvania Avenue NW',
+          city: 'Washington',
+          state: 'DC',
+          zipCode: '20220',
+          country: 'USA',
+          latitude: 38.8978,
+          longitude: -77.0328,
+        ),
         createdAt: DateTime(2024, 1, 15, 11, 45),
         lastUpdated: DateTime(2024, 1, 15, 11, 45),
       ),
@@ -308,13 +451,13 @@ class FirebaseDataSeeder {
   Future<void> seedDevelopmentData() async {
     try {
       print('🧪 Seeding additional development data...');
-      
+
       // Create test user interaction data
       await _seedTestInteractions();
-      
+
       // Create test analytics data
       await _seedTestAnalytics();
-      
+
       print('✅ Development data seeded successfully');
     } catch (e) {
       print('❌ Development data seeding failed: $e');
@@ -345,12 +488,12 @@ class FirebaseDataSeeder {
     };
 
     final batch = _firestore.batch();
-    
+
     for (final entry in analyticsData.entries) {
       final docRef = _firestore.collection('analytics').doc(entry.key);
       batch.set(docRef, entry.value);
     }
-    
+
     await batch.commit();
     print('✅ Analytics data seeded successfully');
   }
@@ -359,27 +502,28 @@ class FirebaseDataSeeder {
   Future<void> clearSeedData() async {
     try {
       print('🧹 Clearing seed data...');
-      
+
       final batch = _firestore.batch();
-      
+
       // Clear departments
       final deptSnapshot = await _firestore.collection('departments').get();
       for (final doc in deptSnapshot.docs) {
         batch.delete(doc.reference);
       }
-      
-      // Clear settings
-      final settingsSnapshot = await _firestore.collection('settings').get();
+
+      // Clear app settings
+      final settingsSnapshot =
+          await _firestore.collection('app_settings').get();
       for (final doc in settingsSnapshot.docs) {
         batch.delete(doc.reference);
       }
-      
+
       // Clear analytics
       final analyticsSnapshot = await _firestore.collection('analytics').get();
       for (final doc in analyticsSnapshot.docs) {
         batch.delete(doc.reference);
       }
-      
+
       await batch.commit();
       print('✅ Seed data cleared successfully');
     } catch (e) {
@@ -391,14 +535,14 @@ class FirebaseDataSeeder {
   Future<Map<String, int>> getSeedingStats() async {
     try {
       final stats = <String, int>{};
-      
-      final collections = ['departments', 'settings', 'analytics'];
-      
+
+      final collections = ['departments', 'app_settings', 'analytics'];
+
       for (final collection in collections) {
         final snapshot = await _firestore.collection(collection).get();
         stats[collection] = snapshot.docs.length;
       }
-      
+
       return stats;
     } catch (e) {
       print('Error getting seeding stats: $e');

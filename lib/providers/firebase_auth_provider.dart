@@ -7,12 +7,13 @@ import '../services/firebase_service.dart';
 /// and integrates with Firestore for user profile management
 class FirebaseAuthProvider with ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
-  
+
   StreamSubscription<User?>? _authSubscription;
   User? _user;
   bool _isInitialized = false;
   String? _errorMessage;
   bool _isLoading = false;
+  bool _isAdmin = false;
   Map<String, dynamic>? _userProfile;
   List<String> _favoriteIds = [];
 
@@ -24,7 +25,7 @@ class FirebaseAuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   Map<String, dynamic>? get userProfile => _userProfile;
   List<String> get favoriteIds => _favoriteIds;
-  bool get isAdmin => _firebaseService.isAdmin();
+  bool get isAdmin => _isAdmin;
 
   /// Initialize the auth provider
   Future<void> initialize() async {
@@ -56,15 +57,20 @@ class FirebaseAuthProvider with ChangeNotifier {
   /// Handle auth state changes
   Future<void> _onAuthStateChanged(User? user) async {
     _user = user;
-    
+
     if (user != null) {
       try {
+        _isAdmin = await _firebaseService.hasAdminAccess(
+          user: user,
+          forceRefreshToken: true,
+        );
+
         // Load or create user profile
         await _loadUserProfile(user);
-        
+
         // Load user's favorites
         await _loadFavorites(user.uid);
-        
+
         _clearError();
       } catch (e) {
         print('Error loading user data: $e');
@@ -72,10 +78,11 @@ class FirebaseAuthProvider with ChangeNotifier {
       }
     } else {
       // Clear user data on sign out
+      _isAdmin = false;
       _userProfile = null;
       _favoriteIds.clear();
     }
-    
+
     notifyListeners();
   }
 
@@ -84,7 +91,7 @@ class FirebaseAuthProvider with ChangeNotifier {
     try {
       // Try to get existing profile
       _userProfile = await _firebaseService.getUserProfile(user.uid);
-      
+
       if (_userProfile == null) {
         // Create new user profile
         await _firebaseService.createUserProfile(
@@ -96,7 +103,7 @@ class FirebaseAuthProvider with ChangeNotifier {
             'emailVerified': user.emailVerified,
           },
         );
-        
+
         // Load the newly created profile
         _userProfile = await _firebaseService.getUserProfile(user.uid);
       } else {
@@ -138,7 +145,7 @@ class FirebaseAuthProvider with ChangeNotifier {
         email: email,
         password: password,
       );
-      
+
       return true;
     } catch (e) {
       _setError(e.toString());
@@ -161,7 +168,7 @@ class FirebaseAuthProvider with ChangeNotifier {
         email: email,
         password: password,
       );
-      
+
       return true;
     } catch (e) {
       _setError(e.toString());
@@ -190,7 +197,7 @@ class FirebaseAuthProvider with ChangeNotifier {
   /// Sign out
   Future<void> signOut() async {
     _setLoading(true);
-    
+
     try {
       await _firebaseService.signOut();
       _clearError();
@@ -210,20 +217,20 @@ class FirebaseAuthProvider with ChangeNotifier {
         userId: _user!.uid,
         departmentId: departmentId,
       );
-      
+
       // Update local state
       if (!_favoriteIds.contains(departmentId)) {
         _favoriteIds.add(departmentId);
         notifyListeners();
       }
-      
+
       // Track interaction
       await _firebaseService.trackDepartmentInteraction(
         userId: _user!.uid,
         departmentId: departmentId,
         interactionType: 'favorite_add',
       );
-      
+
       return true;
     } catch (e) {
       _setError('Failed to add to favorites: $e');
@@ -240,18 +247,18 @@ class FirebaseAuthProvider with ChangeNotifier {
         userId: _user!.uid,
         departmentId: departmentId,
       );
-      
+
       // Update local state
       _favoriteIds.remove(departmentId);
       notifyListeners();
-      
+
       // Track interaction
       await _firebaseService.trackDepartmentInteraction(
         userId: _user!.uid,
         departmentId: departmentId,
         interactionType: 'favorite_remove',
       );
-      
+
       return true;
     } catch (e) {
       _setError('Failed to remove from favorites: $e');
@@ -330,7 +337,7 @@ class FirebaseAuthProvider with ChangeNotifier {
     if (!isSignedIn) return false;
 
     _setLoading(true);
-    
+
     try {
       // Update Firebase Auth profile if needed
       if (displayName != null || photoURL != null) {
@@ -346,17 +353,17 @@ class FirebaseAuthProvider with ChangeNotifier {
       if (displayName != null) updateData['displayName'] = displayName;
       if (photoURL != null) updateData['photoURL'] = photoURL;
       if (additionalData != null) updateData.addAll(additionalData);
-      
+
       if (updateData.isNotEmpty) {
         await _firebaseService.updateUserProfile(
           userId: _user!.uid,
           data: updateData,
         );
-        
+
         // Refresh profile data
         await _loadUserProfile(_user!);
       }
-      
+
       return true;
     } catch (e) {
       _setError('Failed to update profile: $e');

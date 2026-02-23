@@ -19,7 +19,8 @@ class DepartmentService {
   }
 
   /// Get departments by category
-  Future<List<Department>> getDepartmentsByCategory(DepartmentCategory category) async {
+  Future<List<Department>> getDepartmentsByCategory(
+      DepartmentCategory category) async {
     try {
       return await _repository.getDepartmentsByCategory(category);
     } catch (e) {
@@ -41,13 +42,14 @@ class DepartmentService {
     try {
       // Validate department data
       _validateDepartment(department);
-      
+
       // Check if department with same ID already exists
       final existing = await _repository.getDepartmentById(department.id);
       if (existing != null) {
-        throw ServiceException('Department with ID ${department.id} already exists');
+        throw ServiceException(
+            'Department with ID ${department.id} already exists');
       }
-      
+
       // Add timestamp
       final departmentToAdd = department.copyWith(lastUpdated: DateTime.now());
       await _repository.addDepartment(departmentToAdd);
@@ -61,15 +63,17 @@ class DepartmentService {
   Future<void> updateDepartment(Department department) async {
     try {
       _validateDepartment(department);
-      
+
       // Check if department exists
       final existing = await _repository.getDepartmentById(department.id);
       if (existing == null) {
-        throw ServiceException('Department with ID ${department.id} does not exist');
+        throw ServiceException(
+            'Department with ID ${department.id} does not exist');
       }
-      
+
       // Update with new timestamp
-      final departmentToUpdate = department.copyWith(lastUpdated: DateTime.now());
+      final departmentToUpdate =
+          department.copyWith(lastUpdated: DateTime.now());
       await _repository.updateDepartment(departmentToUpdate);
     } catch (e) {
       if (e is ServiceException) rethrow;
@@ -85,7 +89,7 @@ class DepartmentService {
       if (existing == null) {
         throw ServiceException('Department with ID $id does not exist');
       }
-      
+
       await _repository.deleteDepartment(id);
     } catch (e) {
       if (e is ServiceException) rethrow;
@@ -109,7 +113,8 @@ class DepartmentService {
     if (department.description.trim().isEmpty) {
       throw ServiceException('Department description cannot be empty');
     }
-    if (department.contactInfo.email.isNotEmpty && !_isValidEmail(department.contactInfo.email)) {
+    if (department.contactInfo.email.isNotEmpty &&
+        !_isValidEmail(department.contactInfo.email)) {
       throw ServiceException('Invalid email format');
     }
   }
@@ -129,10 +134,13 @@ class DepartmentService {
   }
 
   /// Get favorite departments
-  Future<List<Department>> getFavoriteDepartments(List<String> favoriteIds) async {
+  Future<List<Department>> getFavoriteDepartments(
+      List<String> favoriteIds) async {
     try {
       final departments = await _repository.getDepartments();
-      return departments.where((dept) => favoriteIds.contains(dept.id)).toList();
+      return departments
+          .where((dept) => favoriteIds.contains(dept.id))
+          .toList();
     } catch (e) {
       throw ServiceException('Failed to fetch favorite departments: $e');
     }
@@ -142,12 +150,9 @@ class DepartmentService {
   Future<List<Department>> getPopularDepartments() async {
     try {
       // Use repository's optimized getPopularDepartments method if available
-      if (_repository is FirebaseDepartmentRepository) {
-        final firebaseRepo = _repository as FirebaseDepartmentRepository;
+      if (_repository case FirebaseDepartmentRepository firebaseRepo) {
         return await firebaseRepo.getPopularDepartments();
-      } else if (_repository.runtimeType.toString().contains('HybridDepartmentRepository')) {
-        // Use the hybrid repository's method
-        final hybridRepo = _repository as dynamic;
+      } else if (_repository case HybridDepartmentRepository hybridRepo) {
         return await hybridRepo.getPopularDepartments();
       } else {
         // Fallback for other repositories
@@ -159,6 +164,45 @@ class DepartmentService {
     }
   }
 
+  bool get hasPendingSyncWrites {
+    if (_repository is HybridDepartmentRepository) {
+      return (_repository as HybridDepartmentRepository).hasPendingWrites;
+    }
+    return false;
+  }
+
+  int get pendingSyncWritesCount {
+    if (_repository is HybridDepartmentRepository) {
+      return (_repository as HybridDepartmentRepository).pendingWritesCount;
+    }
+    return 0;
+  }
+
+  String get writeSyncStatusLabel {
+    if (_repository case HybridDepartmentRepository hybridRepo) {
+      switch (hybridRepo.lastWriteSyncStatus) {
+        case WriteSyncStatus.pending:
+          return 'pending';
+        case WriteSyncStatus.synced:
+          return 'synced';
+      }
+    }
+    return 'synced';
+  }
+
+  String? get lastWriteSyncMessage {
+    if (_repository case HybridDepartmentRepository hybridRepo) {
+      return hybridRepo.lastWriteSyncMessage;
+    }
+    return null;
+  }
+
+  Future<void> retryPendingSyncWrites() async {
+    if (_repository case HybridDepartmentRepository hybridRepo) {
+      await hybridRepo.flushPendingOperations();
+    }
+  }
+
   /// Create multiple departments (for batch import)
   Future<void> createDepartments(List<Department> departments) async {
     try {
@@ -166,12 +210,12 @@ class DepartmentService {
       for (final department in departments) {
         _validateDepartment(department);
       }
-      
+
       // Add timestamps and create departments
-      final departmentsToAdd = departments.map((dept) => 
-        dept.copyWith(lastUpdated: DateTime.now())
-      ).toList();
-      
+      final departmentsToAdd = departments
+          .map((dept) => dept.copyWith(lastUpdated: DateTime.now()))
+          .toList();
+
       await _repository.createDepartments(departmentsToAdd);
     } catch (e) {
       if (e is ServiceException) rethrow;

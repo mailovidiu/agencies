@@ -25,7 +25,11 @@ class DepartmentProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String get searchQuery => _searchQuery;
   DepartmentCategory? get selectedCategory => _selectedCategory;
-  
+  bool get hasPendingSyncWrites => _departmentService.hasPendingSyncWrites;
+  int get pendingSyncWritesCount => _departmentService.pendingSyncWritesCount;
+  String get writeSyncStatusLabel => _departmentService.writeSyncStatusLabel;
+  String? get writeSyncMessage => _departmentService.lastWriteSyncMessage;
+
   List<String> get availableTags {
     final allTags = <String>{};
     for (final dept in _departments) {
@@ -34,39 +38,48 @@ class DepartmentProvider with ChangeNotifier {
     return allTags.toList()..sort();
   }
 
-  List<Department> get popularDepartments => _departments.where((dept) => dept.isPopular).toList();
-  
-  List<Department> get favoriteDepartments => _departments.where((dept) => _favoriteDepartmentIds.contains(dept.id)).toList();
-  
+  List<Department> get popularDepartments =>
+      _departments.where((dept) => dept.isPopular).toList();
+
+  List<Department> get favoriteDepartments => _departments
+      .where((dept) => _favoriteDepartmentIds.contains(dept.id))
+      .toList();
+
   // Additional getters for compatibility
   List<Department> get filteredDepartments => _filteredDepartments;
-  
+
   // Methods for compatibility
   Future<void> initialize() async {
     await loadDepartments();
   }
-  
+
   Future<void> refresh() async {
     await loadDepartments();
   }
-  
+
+  Future<void> retryPendingSyncWrites() async {
+    await _departmentService.retryPendingSyncWrites();
+    await loadDepartments();
+  }
+
   List<DepartmentCategory> getAvailableCategories() {
     return DepartmentCategory.values;
   }
-  
+
   bool isFavorite(String departmentId) {
     return _favoriteDepartmentIds.contains(departmentId);
   }
-  
+
   void selectDepartment(String departmentId) {
     // Log activity (no Firebase analytics, just print)
     print('Activity logged: select_department (Department: $departmentId)');
   }
-  
+
   String generateId() {
     // Generate a unique ID with timestamp + random component to avoid collisions
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = (timestamp % 10000); // Use last 4 digits of timestamp for uniqueness
+    final random =
+        (timestamp % 10000); // Use last 4 digits of timestamp for uniqueness
     return '${timestamp}_$random';
   }
 
@@ -88,7 +101,7 @@ class DepartmentProvider with ChangeNotifier {
     try {
       await _departmentService.addDepartment(department);
       await loadDepartments(); // Reload to get updated list
-      
+
       // Log activity (no Firebase analytics, just print)
       print('Activity logged: add_department (Department: ${department.id})');
     } catch (e) {
@@ -101,9 +114,10 @@ class DepartmentProvider with ChangeNotifier {
     try {
       await _departmentService.updateDepartment(department);
       await loadDepartments(); // Reload to get updated list
-      
+
       // Log activity (no Firebase analytics, just print)
-      print('Activity logged: update_department (Department: ${department.id})');
+      print(
+          'Activity logged: update_department (Department: ${department.id})');
     } catch (e) {
       _setError('Failed to update department: $e');
     }
@@ -114,7 +128,7 @@ class DepartmentProvider with ChangeNotifier {
     try {
       await _departmentService.deleteDepartment(id);
       await loadDepartments(); // Reload to get updated list
-      
+
       // Log activity (no Firebase analytics, just print)
       print('Activity logged: delete_department (Department: $id)');
     } catch (e) {
@@ -127,9 +141,10 @@ class DepartmentProvider with ChangeNotifier {
     try {
       await _departmentService.createDepartments(departments);
       await loadDepartments(); // Reload to get updated list
-      
+
       // Log activity (no Firebase analytics, just print)
-      print('Activity logged: import_departments (${departments.length} departments)');
+      print(
+          'Activity logged: import_departments (${departments.length} departments)');
     } catch (e) {
       _setError('Failed to import departments: $e');
     }
@@ -139,7 +154,7 @@ class DepartmentProvider with ChangeNotifier {
   void searchDepartments(String query) {
     _searchQuery = query;
     _applyFilters();
-    
+
     // Log search activity (no Firebase analytics, just print)
     if (query.isNotEmpty) {
       print('Activity logged: search_departments (Query: $query)');
@@ -150,7 +165,7 @@ class DepartmentProvider with ChangeNotifier {
   void filterByCategory(DepartmentCategory? category) {
     _selectedCategory = category;
     _applyFilters();
-    
+
     // Log filter activity (no Firebase analytics, just print)
     if (category != null) {
       print('Activity logged: filter_by_category (Category: $category)');
@@ -162,7 +177,7 @@ class DepartmentProvider with ChangeNotifier {
     _searchQuery = '';
     _selectedCategory = null;
     _applyFilters();
-    
+
     // Log clear filters activity (no Firebase analytics, just print)
     print('Activity logged: clear_filters');
   }
@@ -170,17 +185,18 @@ class DepartmentProvider with ChangeNotifier {
   // Toggle favorite
   void toggleFavorite(String departmentId) {
     final wasFavorite = _favoriteDepartmentIds.contains(departmentId);
-    
+
     if (wasFavorite) {
       _favoriteDepartmentIds.remove(departmentId);
     } else {
       _favoriteDepartmentIds.add(departmentId);
     }
-    
+
     notifyListeners();
-    
+
     // Log favorite activity (no Firebase analytics, just print)
-    print('Activity logged: ${wasFavorite ? 'remove_favorite' : 'add_favorite'} (Department: $departmentId)');
+    print(
+        'Activity logged: ${wasFavorite ? 'remove_favorite' : 'add_favorite'} (Department: $departmentId)');
   }
 
   // Apply current filters
@@ -197,7 +213,8 @@ class DepartmentProvider with ChangeNotifier {
         return dept.name.toLowerCase().contains(query) ||
             dept.shortName.toLowerCase().contains(query) ||
             dept.description.toLowerCase().contains(query) ||
-            dept.keywords.any((keyword) => keyword.toLowerCase().contains(query)) ||
+            dept.keywords
+                .any((keyword) => keyword.toLowerCase().contains(query)) ||
             dept.tags.any((tag) => tag.toLowerCase().contains(query));
       }
 

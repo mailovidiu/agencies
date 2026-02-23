@@ -14,6 +14,8 @@ import 'department_detail_screen.dart';
 import 'category_screen.dart';
 import 'department_compare_screen.dart';
 import 'profile_screen.dart';
+import 'whats_new_screen.dart';
+import 'map_screen.dart';
 
 /// Modern home screen with enhanced visual design
 class HomeScreen extends StatefulWidget {
@@ -120,6 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     _buildSearchResults(context, provider),
                   ] else ...[
                     _buildHeroSection(context),
+                    _buildRecentlyUpdatedSection(context, provider),
                     _buildQuickActionsSection(context),
                     _buildPopularSection(context, provider),
                     _buildPromotionalAdCard(context),
@@ -398,6 +401,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             borderRadius: BorderRadius.circular(12),
           ),
           child: IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const WhatsNewScreen(),
+                ),
+              );
+            },
+            tooltip: 'What\'s New',
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.only(right: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
             icon: const Icon(Icons.person, color: Colors.white),
             onPressed: () {
               Navigator.push(
@@ -442,6 +464,204 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ),
       ),
     );
+  }
+
+  Widget _buildRecentlyUpdatedSection(BuildContext context, DepartmentProvider provider) {
+    // Get departments sorted by lastUpdated
+    final allDepts = List<Department>.from(provider.allDepartments);
+    allDepts.sort((a, b) {
+      final aDate = a.lastUpdated ?? a.createdAt ?? DateTime(2000);
+      final bDate = b.lastUpdated ?? b.createdAt ?? DateTime(2000);
+      return bDate.compareTo(aDate);
+    });
+    final recentDepts = allDepts.take(5).toList();
+
+    if (recentDepts.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverToBoxAdapter(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B35),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Recently Updated',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const WhatsNewScreen(),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'See All',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 12,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: recentDepts.length,
+              itemBuilder: (context, index) {
+                final dept = recentDepts[index];
+                final updateDate = dept.lastUpdated ?? dept.createdAt;
+                final timeAgo = updateDate != null
+                    ? _formatTimeAgo(updateDate)
+                    : '';
+
+                return Container(
+                  width: 220,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _navigateToDetail(context, dept, provider),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFF6B35).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    _getCategoryIcon(dept.category),
+                                    size: 16,
+                                    color: const Color(0xFFFF6B35),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    dept.shortName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            Text(
+                              dept.name,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  size: 11,
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  timeAgo,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return '${weeks}w ago';
+    } else if (difference.inDays < 365) {
+      final months = (difference.inDays / 30).floor();
+      return '${months}mo ago';
+    } else {
+      final years = (difference.inDays / 365).floor();
+      return '${years}y ago';
+    }
   }
 
   Widget _buildQuickActionsSection(BuildContext context) {
@@ -494,7 +714,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     },
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _buildQuickActionCard(
                     context,
@@ -510,6 +730,27 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         context,
                         MaterialPageRoute(
                           builder: (context) => const FavoritesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildQuickActionCard(
+                    context,
+                    icon: Icons.map_outlined,
+                    title: 'Near Me',
+                    subtitle: 'Agencies on map',
+                    gradient: [
+                      const Color(0xFF11998e),
+                      const Color(0xFF38ef7d),
+                    ],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MapScreen(),
                         ),
                       );
                     },

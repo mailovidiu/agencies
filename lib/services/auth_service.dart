@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Current user
   User? get currentUser => _firebaseAuth.currentUser;
@@ -16,7 +18,8 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final UserCredential userCredential = await _firebaseAuth.signInWithEmailAndPassword(
+      final UserCredential userCredential =
+          await _firebaseAuth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -32,7 +35,8 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final UserCredential userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
+      final UserCredential userCredential =
+          await _firebaseAuth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -56,27 +60,44 @@ class AuthService {
     }
   }
 
-  // Check if user is admin (you can customize this logic)
-  bool isAdmin() {
-    final user = currentUser;
-    if (user == null) return false;
-    
-    // For now, any authenticated user is considered admin
-    // You can customize this by adding specific admin emails in the list below
-    
-    // Option 1: Specific admin emails
-    const adminEmails = <String>[
-      // Add your admin emails here, for example:
-     "ovi@ovi.ro"
-    ];
-    
-    if (adminEmails.isNotEmpty) {
-      return adminEmails.contains(user.email?.toLowerCase());
+  // Resolve admin access from secure server-side signals.
+  // Priority:
+  // 1. Firebase custom claim: admin=true or role in {admin, super_admin}
+  // 2. Firestore admin_users/{uid} with isActive=true
+  Future<bool> hasAdminAccess({
+    User? user,
+    bool forceRefreshToken = false,
+  }) async {
+    final resolvedUser = user ?? currentUser;
+    if (resolvedUser == null) return false;
+
+    try {
+      final tokenResult =
+          await resolvedUser.getIdTokenResult(forceRefreshToken);
+      final claims = tokenResult.claims;
+      final hasAdminClaim = claims?['admin'] == true ||
+          claims?['role'] == 'admin' ||
+          claims?['role'] == 'super_admin';
+
+      if (hasAdminClaim) {
+        return true;
+      }
+    } catch (_) {
+      // Continue with Firestore fallback.
     }
-    
-    // Option 2: For now, treat any authenticated user as admin
-    // Remove this line once you add specific admin emails above
-    return user.email?.isNotEmpty ?? false;
+
+    try {
+      final adminDoc = await _firestore
+          .collection('admin_users')
+          .doc(resolvedUser.uid)
+          .get();
+      if (!adminDoc.exists) return false;
+
+      final data = adminDoc.data();
+      return data?['isActive'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // Handle Firebase Auth exceptions

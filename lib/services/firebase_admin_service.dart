@@ -6,12 +6,20 @@ import '../firestore/firestore_data_schema.dart';
 /// Firebase service for admin operations and management
 /// Provides high-level administrative functions for the department app
 class FirebaseAdminService {
-  static final FirebaseAdminService _instance = FirebaseAdminService._internal();
+  static final FirebaseAdminService _instance =
+      FirebaseAdminService._internal();
   factory FirebaseAdminService() => _instance;
   FirebaseAdminService._internal();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  DateTime? _asDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
 
   /// Get current admin user information
   User? get currentUser => _auth.currentUser;
@@ -21,13 +29,13 @@ class FirebaseAdminService {
   Future<void> initialize() async {
     try {
       print('Initializing Firebase Admin Service...');
-      
+
       // Ensure Firestore is properly initialized
       await _firestore.waitForPendingWrites();
-      
+
       // Create initial app settings if they don't exist
       await _initializeAppSettings();
-      
+
       print('Firebase Admin Service initialized successfully');
     } catch (e) {
       print('Error initializing Firebase Admin Service: $e');
@@ -38,31 +46,32 @@ class FirebaseAdminService {
   Future<void> _initializeAppSettings() async {
     try {
       final settingsCollection = FirestoreDataSchema.appSettingsRef;
-      
+
       // Check if app version setting exists
       final appVersionDoc = await settingsCollection.doc('app_version').get();
       if (!appVersionDoc.exists) {
-        await settingsCollection.doc('app_version').set(
-          FirestoreDataSchema.createAppSettingDocument(
-            key: 'app_version',
-            value: '1.0.0',
-            description: 'Current version of the department app',
-            updatedBy: currentUser?.uid,
-          )
-        );
+        await settingsCollection
+            .doc('app_version')
+            .set(FirestoreDataSchema.createAppSettingDocument(
+              key: 'app_version',
+              value: '1.0.0',
+              description: 'Current version of the department app',
+              updatedBy: currentUser?.uid,
+            ));
       }
 
       // Check if maintenance mode setting exists
-      final maintenanceDoc = await settingsCollection.doc('maintenance_mode').get();
+      final maintenanceDoc =
+          await settingsCollection.doc('maintenance_mode').get();
       if (!maintenanceDoc.exists) {
-        await settingsCollection.doc('maintenance_mode').set(
-          FirestoreDataSchema.createAppSettingDocument(
-            key: 'maintenance_mode',
-            value: false,
-            description: 'Whether the app is in maintenance mode',
-            updatedBy: currentUser?.uid,
-          )
-        );
+        await settingsCollection
+            .doc('maintenance_mode')
+            .set(FirestoreDataSchema.createAppSettingDocument(
+              key: 'maintenance_mode',
+              value: false,
+              description: 'Whether the app is in maintenance mode',
+              updatedBy: currentUser?.uid,
+            ));
       }
     } catch (e) {
       print('Error initializing app settings: $e');
@@ -84,7 +93,7 @@ class FirebaseAdminService {
       }
 
       await batch.commit();
-      
+
       // Log the operation
       await _logAdminActivity(
         'bulk_import_departments',
@@ -103,7 +112,7 @@ class FirebaseAdminService {
   Future<Map<String, dynamic>> getDashboardStats() async {
     try {
       final departments = FirestoreDataSchema.departmentsRef;
-      
+
       // Get all departments at once to avoid multiple queries
       final allDepartmentsSnapshot = await departments.get();
       final allDepartments = allDepartmentsSnapshot.docs;
@@ -112,7 +121,7 @@ class FirebaseAdminService {
         final data = doc.data() as Map<String, dynamic>?;
         return data?['isActive'] == true;
       }).toList();
-      
+
       final popularDepartments = allDepartments.where((doc) {
         final data = doc.data() as Map<String, dynamic>?;
         return data?['isPopular'] == true;
@@ -137,9 +146,10 @@ class FirebaseAdminService {
       final weekAgo = DateTime.now().subtract(Duration(days: 7));
       final recentlyUpdated = allDepartments.where((doc) {
         final data = doc.data() as Map<String, dynamic>?;
-        final lastUpdated = data?['lastUpdated'] as Timestamp?;
-        return lastUpdated != null && 
-               lastUpdated.toDate().isAfter(weekAgo);
+        final lastUpdated = _asDateTime(data?['lastUpdated']);
+        final createdAt = _asDateTime(data?['createdAt']);
+        final effectiveDate = lastUpdated ?? createdAt;
+        return effectiveDate != null && effectiveDate.isAfter(weekAgo);
       }).length;
 
       return {
@@ -160,7 +170,8 @@ class FirebaseAdminService {
   }
 
   /// Mark departments as popular/unpopular in bulk
-  Future<bool> bulkUpdatePopularStatus(List<String> departmentIds, bool isPopular) async {
+  Future<bool> bulkUpdatePopularStatus(
+      List<String> departmentIds, bool isPopular) async {
     if (departmentIds.isEmpty) return false;
 
     try {
@@ -191,7 +202,8 @@ class FirebaseAdminService {
   }
 
   /// Archive/unarchive departments in bulk
-  Future<bool> bulkArchiveDepartments(List<String> departmentIds, bool archive) async {
+  Future<bool> bulkArchiveDepartments(
+      List<String> departmentIds, bool archive) async {
     if (departmentIds.isEmpty) return false;
 
     try {
@@ -268,7 +280,7 @@ class FirebaseAdminService {
       );
 
       await adminDoc.set(adminData, SetOptions(merge: true));
-      
+
       // Log the operation
       await _logAdminActivity(
         'create_admin_user',
@@ -301,7 +313,8 @@ class FirebaseAdminService {
   }
 
   /// Update app setting
-  Future<bool> updateAppSetting(String key, dynamic value, [String? description]) async {
+  Future<bool> updateAppSetting(String key, dynamic value,
+      [String? description]) async {
     try {
       final settingData = FirestoreDataSchema.createAppSettingDocument(
         key: key,
@@ -311,7 +324,7 @@ class FirebaseAdminService {
       );
 
       await FirestoreDataSchema.appSettingsRef.doc(key).set(settingData);
-      
+
       // Log the operation
       await _logAdminActivity(
         'update_app_setting',
@@ -329,13 +342,13 @@ class FirebaseAdminService {
   Future<Map<String, dynamic>> getAppSettings() async {
     try {
       final snapshot = await FirestoreDataSchema.appSettingsRef.get();
-      
+
       final settings = <String, dynamic>{};
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         settings[doc.id] = data['value'];
       }
-      
+
       return settings;
     } catch (e) {
       print('Error getting app settings: $e');
@@ -346,22 +359,23 @@ class FirebaseAdminService {
   /// Export all departments as JSON
   Future<List<Map<String, dynamic>>> exportDepartmentsAsJson() async {
     try {
-      final snapshot = await FirestoreDataSchema.departmentsRef
-          .orderBy('name')
-          .get();
+      final snapshot =
+          await FirestoreDataSchema.departmentsRef.orderBy('name').get();
 
       final departments = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
-        
+
         // Convert Timestamps to ISO strings for JSON export
         if (data['createdAt'] is Timestamp) {
-          data['createdAt'] = (data['createdAt'] as Timestamp).toDate().toIso8601String();
+          data['createdAt'] =
+              (data['createdAt'] as Timestamp).toDate().toIso8601String();
         }
         if (data['lastUpdated'] is Timestamp) {
-          data['lastUpdated'] = (data['lastUpdated'] as Timestamp).toDate().toIso8601String();
+          data['lastUpdated'] =
+              (data['lastUpdated'] as Timestamp).toDate().toIso8601String();
         }
-        
+
         return data;
       }).toList();
 
@@ -396,9 +410,11 @@ class FirebaseAdminService {
   }
 
   /// Get recent admin activities (for audit log)
-  Future<List<Map<String, dynamic>>> getRecentAdminActivities({int limit = 50}) async {
+  Future<List<Map<String, dynamic>>> getRecentAdminActivities(
+      {int limit = 50}) async {
     try {
-      final snapshot = await _firestore.collection('admin_activities')
+      final snapshot = await _firestore
+          .collection('admin_activities')
           .orderBy('timestamp', descending: true)
           .limit(limit)
           .get();
@@ -418,10 +434,11 @@ class FirebaseAdminService {
   Future<Map<String, dynamic>> validateFirestoreSetup() async {
     try {
       final results = <String, dynamic>{};
-      
+
       // Test read access
       try {
-        final testSnapshot = await FirestoreDataSchema.departmentsRef.limit(1).get();
+        final testSnapshot =
+            await FirestoreDataSchema.departmentsRef.limit(1).get();
         results['read_access'] = true;
         results['read_test'] = 'Success';
       } catch (e) {
@@ -433,7 +450,8 @@ class FirebaseAdminService {
       if (isAuthenticated) {
         try {
           final testDoc = FirestoreDataSchema.departmentsRef.doc('_test_doc_');
-          await testDoc.set({'test': true, 'timestamp': FieldValue.serverTimestamp()});
+          await testDoc
+              .set({'test': true, 'timestamp': FieldValue.serverTimestamp()});
           await testDoc.delete();
           results['write_access'] = true;
           results['write_test'] = 'Success';
@@ -452,7 +470,8 @@ class FirebaseAdminService {
         results['popular_index'] = true;
       } catch (e) {
         results['popular_index'] = false;
-        results['popular_index_error'] = 'Index may be needed for popular departments query';
+        results['popular_index_error'] =
+            'Index may be needed for popular departments query';
       }
 
       results['timestamp'] = DateTime.now().toIso8601String();

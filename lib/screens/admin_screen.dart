@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import '../providers/department_provider.dart';
 import '../providers/auth_provider.dart';
@@ -340,6 +341,13 @@ class _AdminScreenState extends State<AdminScreen> {
                       title: Text('Delete', style: TextStyle(color: Colors.red)),
                     ),
                   ),
+                  const PopupMenuItem(
+                    value: 'notify',
+                    child: ListTile(
+                      leading: Icon(Icons.notifications_active, color: Colors.orange),
+                      title: Text('Notify Users', style: TextStyle(color: Colors.orange)),
+                    ),
+                  ),
                 ],
               ),
               onTap: () => _editDepartment(department),
@@ -360,6 +368,9 @@ class _AdminScreenState extends State<AdminScreen> {
         break;
       case 'delete':
         _deleteDepartment(department);
+        break;
+      case 'notify':
+        _notifyUsersAbout(department);
         break;
     }
   }
@@ -438,6 +449,104 @@ class _AdminScreenState extends State<AdminScreen> {
         }
       }
     });
+  }
+
+  void _notifyUsersAbout(Department department) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.notifications_active, color: Colors.orange),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Notify Users')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Send a notification about "${department.name}" to users subscribed to:'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+              ),
+              child: Text(
+                department.category.displayName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'This will save a notification record to Firestore. To send the actual push notification, go to Firebase Console → Cloud Messaging.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _saveNotificationRecord(department);
+            },
+            icon: const Icon(Icons.send, size: 18),
+            label: const Text('Save & Notify'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveNotificationRecord(Department department) async {
+    try {
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'departmentId': department.id,
+        'departmentName': department.name,
+        'category': department.category.name,
+        'topic': 'dept_${department.category.name}',
+        'title': '${department.shortName} Updated',
+        'body': '${department.name} has been updated. Tap to see what\'s new.',
+        'createdAt': FieldValue.serverTimestamp(),
+        'sent': false,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Notification record saved for "${department.shortName}". Send via Firebase Console.'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save notification: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showImportDialog() {

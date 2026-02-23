@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
@@ -5,7 +6,9 @@ import '../services/auth_service.dart';
 // Firebase auth provider
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
+  StreamSubscription<User?>? _authSubscription;
   User? _user;
+  bool _isAdmin = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -14,11 +17,19 @@ class AuthProvider with ChangeNotifier {
   }
 
   void _init() {
-    _user = _authService.currentUser;
-    _authService.authStateChanges.listen((User? user) {
-      _user = user;
-      notifyListeners();
+    _authSubscription = _authService.authStateChanges.listen((User? user) {
+      unawaited(_handleAuthStateChanged(user));
     });
+    unawaited(_handleAuthStateChanged(_authService.currentUser));
+  }
+
+  Future<void> _handleAuthStateChanged(User? user) async {
+    _user = user;
+    _isAdmin = await _authService.hasAdminAccess(
+      user: user,
+      forceRefreshToken: true,
+    );
+    notifyListeners();
   }
 
   // Getters
@@ -26,7 +37,7 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _user != null;
-  bool get isAdmin => _authService.isAdmin();
+  bool get isAdmin => _isAdmin;
 
   // Sign in
   Future<bool> signIn({required String email, required String password}) async {
@@ -34,7 +45,8 @@ class AuthProvider with ChangeNotifier {
     _clearError();
 
     try {
-      await _authService.signInWithEmailAndPassword(email: email, password: password);
+      await _authService.signInWithEmailAndPassword(
+          email: email, password: password);
       _setLoading(false);
       return true;
     } catch (e) {
@@ -45,12 +57,14 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Create account
-  Future<bool> createAccount({required String email, required String password}) async {
+  Future<bool> createAccount(
+      {required String email, required String password}) async {
     _setLoading(true);
     _clearError();
 
     try {
-      await _authService.createUserWithEmailAndPassword(email: email, password: password);
+      await _authService.createUserWithEmailAndPassword(
+          email: email, password: password);
       _setLoading(false);
       return true;
     } catch (e) {
@@ -93,5 +107,11 @@ class AuthProvider with ChangeNotifier {
   void _clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 }

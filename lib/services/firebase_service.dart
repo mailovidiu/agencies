@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import '../models/department.dart';
 import '../repositories/firebase_department_repository.dart';
 import '../utils/data_migration.dart';
 
@@ -15,13 +14,13 @@ class FirebaseService {
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
-  
+
   late final FirebaseDepartmentRepository _departmentRepository;
   late final DataMigrationUtility _migrationUtility;
-  
+
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
-  
+
   String? _connectionError;
   String? get connectionError => _connectionError;
 
@@ -32,7 +31,8 @@ class FirebaseService {
 
       // Check if Firebase is already initialized
       if (Firebase.apps.isEmpty) {
-        throw Exception('Firebase not initialized. Please initialize Firebase first.');
+        throw Exception(
+            'Firebase not initialized. Please initialize Firebase first.');
       }
 
       // Initialize repository and migration utility
@@ -41,10 +41,10 @@ class FirebaseService {
 
       // Test connectivity
       await _testFirebaseConnection();
-      
+
       _isInitialized = true;
       _connectionError = null;
-      
+
       print('Firebase service initialized successfully');
       return true;
     } catch (e) {
@@ -60,13 +60,13 @@ class FirebaseService {
       // Test Firestore connectivity
       await _firestore.enableNetwork();
       await _firestore.collection('_test').limit(1).get();
-      
+
       // Test Auth connectivity
       await _auth.authStateChanges().first.timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => null,
-      );
-      
+            const Duration(seconds: 5),
+            onTimeout: () => null,
+          );
+
       print('Firebase connectivity test passed');
     } catch (e) {
       throw Exception('Firebase connectivity test failed: $e');
@@ -86,7 +86,7 @@ class FirebaseService {
     if (!_isInitialized) {
       throw Exception('Firebase service not initialized');
     }
-    
+
     try {
       await _migrationUtility.initializeFirebaseData();
       print('Firebase data initialization completed');
@@ -97,7 +97,7 @@ class FirebaseService {
   }
 
   // AUTHENTICATION METHODS
-  
+
   /// Current user
   User? get currentUser => _auth.currentUser;
 
@@ -148,16 +148,43 @@ class FirebaseService {
     await _auth.signOut();
   }
 
-  /// Check if current user is admin
-  bool isAdmin() {
-    final user = currentUser;
-    if (user == null) return false;
-    
-    const adminEmails = <String>[
-      "ovi@ovi.ro", // Add your admin emails here
-    ];
-    
-    return adminEmails.contains(user.email?.toLowerCase());
+  /// Resolve admin access from secure server-side signals.
+  /// Priority:
+  /// 1. Firebase custom claim: admin=true or role in {admin, super_admin}
+  /// 2. Firestore admin_users/{uid} with isActive=true
+  Future<bool> hasAdminAccess({
+    User? user,
+    bool forceRefreshToken = false,
+  }) async {
+    final resolvedUser = user ?? currentUser;
+    if (resolvedUser == null) return false;
+
+    try {
+      final tokenResult =
+          await resolvedUser.getIdTokenResult(forceRefreshToken);
+      final claims = tokenResult.claims;
+      final hasAdminClaim = claims?['admin'] == true ||
+          claims?['role'] == 'admin' ||
+          claims?['role'] == 'super_admin';
+      if (hasAdminClaim) {
+        return true;
+      }
+    } catch (_) {
+      // Continue with Firestore fallback.
+    }
+
+    try {
+      final adminDoc = await _firestore
+          .collection('admin_users')
+          .doc(resolvedUser.uid)
+          .get();
+      if (!adminDoc.exists) return false;
+
+      final data = adminDoc.data();
+      return data?['isActive'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // USER DATA METHODS
@@ -280,7 +307,7 @@ class FirebaseService {
           .doc(userId)
           .collection('favorites')
           .get();
-      
+
       return snapshot.docs.map((doc) => doc.id).toList();
     } catch (e) {
       print('Error getting favorite IDs: $e');
@@ -304,7 +331,7 @@ class FirebaseService {
           .collection('favorites')
           .doc(departmentId)
           .get();
-      
+
       return doc.exists;
     } catch (e) {
       print('Error checking favorite status: $e');
@@ -372,24 +399,25 @@ class FirebaseService {
 
   /// Get app-wide statistics (admin only)
   Future<Map<String, dynamic>?> getAppStatistics() async {
-    if (!_isInitialized || !isAdmin()) {
+    final isAdmin = await hasAdminAccess();
+    if (!_isInitialized || !isAdmin) {
       throw Exception('Unauthorized access to app statistics');
     }
 
     try {
       // Get department stats from repository
       final deptStats = await _departmentRepository.getDepartmentStats();
-      
+
       // Get user count
       final usersSnapshot = await _firestore.collection('users').get();
-      
+
       // Get interactions count
       final interactionsQuery = await _firestore
           .collectionGroup('interactions')
           .orderBy('timestamp', descending: true)
           .limit(1000)
           .get();
-      
+
       return {
         'departments': deptStats,
         'users': {
@@ -400,11 +428,14 @@ class FirebaseService {
         },
         'interactions': {
           'total': interactionsQuery.docs.length,
-          'recent': interactionsQuery.docs.take(10).map((doc) => {
-            'type': doc.data()['type'],
-            'timestamp': doc.data()['timestamp'],
-            'departmentId': doc.data()['departmentId'],
-          }).toList(),
+          'recent': interactionsQuery.docs
+              .take(10)
+              .map((doc) => {
+                    'type': doc.data()['type'],
+                    'timestamp': doc.data()['timestamp'],
+                    'departmentId': doc.data()['departmentId'],
+                  })
+              .toList(),
         },
         'lastUpdated': DateTime.now().toIso8601String(),
       };
@@ -442,9 +473,10 @@ class FirebaseService {
 class FirebaseServiceException implements Exception {
   final String message;
   final String? code;
-  
+
   const FirebaseServiceException(this.message, [this.code]);
-  
+
   @override
-  String toString() => 'FirebaseServiceException: $message${code != null ? ' (Code: $code)' : ''}';
+  String toString() =>
+      'FirebaseServiceException: $message${code != null ? ' (Code: $code)' : ''}';
 }
