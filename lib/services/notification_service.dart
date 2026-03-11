@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/department.dart';
+import '../utils/app_logger.dart';
 
 /// Background message handler — must be a top-level function
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print('🔔 Background message received: ${message.messageId}');
+  logVerbose('🔔 Background message received: ${message.messageId}');
 }
 
 /// Service for managing push notifications via Firebase Cloud Messaging.
@@ -41,6 +43,7 @@ class NotificationService {
   final StreamController<String?> _onNotificationTap =
       StreamController<String?>.broadcast();
   Stream<String?> get onNotificationTap => _onNotificationTap.stream;
+  String? _pendingNotificationTap;
 
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -60,21 +63,24 @@ class NotificationService {
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
-        print('🔔 Notification permission denied');
+        logVerbose('🔔 Notification permission denied');
         return;
       }
 
-      print(
-          '🔔 Notification permission: ${settings.authorizationStatus}');
+      logVerbose('🔔 Notification permission: ${settings.authorizationStatus}');
 
       // Get FCM token
       _fcmToken = await _messaging.getToken();
-      print('🔔 FCM Token: ${_fcmToken?.substring(0, 20)}...');
+      if (kDebugMode) {
+        logVerbose('🔔 FCM Token (full): $_fcmToken');
+      } else {
+        logVerbose('🔔 FCM Token: ${_fcmToken?.substring(0, 20)}...');
+      }
 
       // Listen for token refresh
       _messaging.onTokenRefresh.listen((token) {
         _fcmToken = token;
-        print('🔔 FCM Token refreshed');
+        logVerbose('🔔 FCM Token refreshed');
       });
 
       // Initialize local notifications
@@ -96,9 +102,9 @@ class NotificationService {
       await _restoreTopicSubscriptions();
 
       _isInitialized = true;
-      print('✅ Notification service initialized');
+      logVerbose('✅ Notification service initialized');
     } catch (e) {
-      print('❌ Notification service initialization failed: $e');
+      logError('❌ Notification service initialization failed: $e');
     }
   }
 
@@ -120,7 +126,8 @@ class NotificationService {
     await _localNotifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (response) {
-        _onNotificationTap.add(response.payload);
+        final departmentId = _normalizeDepartmentId(response.payload);
+        _emitNotificationTap(departmentId);
       },
     );
 
@@ -140,7 +147,7 @@ class NotificationService {
 
   /// Handle foreground messages — show as local notification
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    print('🔔 Foreground message: ${message.notification?.title}');
+    logVerbose('🔔 Foreground message: ${message.notification?.title}');
 
     final notification = message.notification;
     if (notification == null) return;
@@ -164,14 +171,43 @@ class NotificationService {
           presentSound: true,
         ),
       ),
-      payload: message.data['departmentId'],
+      payload: _extractDepartmentId(message.data),
     );
   }
 
   /// Handle notification tap
   void _handleNotificationTap(RemoteMessage message) {
-    print('🔔 Notification tapped: ${message.data}');
-    _onNotificationTap.add(message.data['departmentId']);
+    logVerbose('🔔 Notification tapped: ${message.data}');
+    final departmentId = _extractDepartmentId(message.data);
+    _emitNotificationTap(departmentId);
+  }
+
+  String? _extractDepartmentId(Map<String, dynamic> data) {
+    return _normalizeDepartmentId(
+      data['departmentId'] ?? data['department_id'] ?? data['id'],
+    );
+  }
+
+  String? _normalizeDepartmentId(Object? value) {
+    if (value == null) return null;
+    final normalized = value.toString().trim();
+    if (normalized.isEmpty) return null;
+    return normalized;
+  }
+
+  void _emitNotificationTap(String? departmentId) {
+    if (_onNotificationTap.hasListener) {
+      _onNotificationTap.add(departmentId);
+      return;
+    }
+    _pendingNotificationTap = departmentId;
+  }
+
+  /// Returns a tap payload captured before a listener was attached.
+  String? takePendingNotificationTap() {
+    final pending = _pendingNotificationTap;
+    _pendingNotificationTap = null;
+    return pending;
   }
 
   // ─── Topic Subscription Management ───
@@ -197,11 +233,11 @@ class NotificationService {
       for (final category in DepartmentCategory.values) {
         await _messaging.unsubscribeFromTopic(_topicName(category));
       }
-      print('🔔 All notification topics unsubscribed');
+      logVerbose('🔔 All notification topics unsubscribed');
     } else {
       // Re-subscribe to previously selected topics
       await _restoreTopicSubscriptions();
-      print('🔔 Notification topics restored');
+      logVerbose('🔔 Notification topics restored');
     }
   }
 
@@ -222,10 +258,10 @@ class NotificationService {
 
     if (subscribed) {
       await _messaging.subscribeToTopic(_topicName(category));
-      print('🔔 Subscribed to topic: ${_topicName(category)}');
+      logVerbose('🔔 Subscribed to topic: ${_topicName(category)}');
     } else {
       await _messaging.unsubscribeFromTopic(_topicName(category));
-      print('🔔 Unsubscribed from topic: ${_topicName(category)}');
+      logVerbose('🔔 Unsubscribed from topic: ${_topicName(category)}');
     }
   }
 
@@ -240,7 +276,7 @@ class NotificationService {
         await _messaging.subscribeToTopic(_topicName(category));
       }
     }
-    print('🔔 Topic subscriptions restored');
+    logVerbose('🔔 Topic subscriptions restored');
   }
 
   /// Get a map of all category subscription states

@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'ad_helper.dart';
 import '../services/consent_service.dart';
-import '../services/tracking_service.dart';
+import '../utils/app_logger.dart';
 
 class AdManager {
   static final AdManager _instance = AdManager._internal();
@@ -27,36 +26,23 @@ class AdManager {
 
   // Initialize ads based on consent
   Future<void> initialize() async {
-    if (_isInitialized) return;
-
     final consentService = ConsentService.instance;
     if (!consentService.shouldShowAds) {
       if (kDebugMode) {
-        print('Ads disabled by user consent');
+        logVerbose('Ads disabled by user consent');
       }
+      _disableAds();
+      return;
+    }
+
+    if (_isInitialized) {
       return;
     }
 
     try {
-      // Request tracking authorization for iOS
-      if (Platform.isIOS) {
-        final trackingService = TrackingService();
-        final trackingStatus =
-            await trackingService.requestTrackingAuthorization();
-        if (kDebugMode) {
-          print('🔒 Tracking authorization status: $trackingStatus');
-        }
-      }
-
-      // Configure ad request based on consent
       final requestConfiguration = RequestConfiguration(
         testDeviceIds: kDebugMode ? ['YOUR_TEST_DEVICE_ID'] : null,
       );
-
-      // Set non-personalized ads if user chose that option
-      if (!consentService.canShowPersonalizedAds) {
-        // This will be handled by UMP SDK automatically
-      }
 
       await MobileAds.instance.updateRequestConfiguration(requestConfiguration);
       await MobileAds.instance.initialize();
@@ -68,12 +54,28 @@ class AdManager {
       await loadInterstitialAd();
 
       if (kDebugMode) {
-        print('AdManager initialized successfully');
+        logVerbose('AdManager initialized successfully');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error initializing AdManager: $e');
+        logVerbose('Error initializing AdManager: $e');
       }
+    }
+  }
+
+  Future<void> syncConsentState() async {
+    if (!ConsentService.instance.shouldShowAds) {
+      _disableAds();
+      return;
+    }
+
+    await initialize();
+
+    if (_appOpenAd == null) {
+      await loadAppOpenAd();
+    }
+    if (_interstitialAd == null && !_isLoadingInterstitial) {
+      await loadInterstitialAd();
     }
   }
 
@@ -89,19 +91,19 @@ class AdManager {
             _appOpenAd = ad;
             _appOpenAdLoadTime = DateTime.now();
             if (kDebugMode) {
-              print('App open ad loaded successfully');
+              logVerbose('App open ad loaded successfully');
             }
           },
           onAdFailedToLoad: (error) {
             if (kDebugMode) {
-              print('Failed to load app open ad: $error');
+              logVerbose('Failed to load app open ad: $error');
             }
           },
         ),
       );
     } catch (e) {
       if (kDebugMode) {
-        print('Error loading app open ad: $e');
+        logVerbose('Error loading app open ad: $e');
       }
     }
   }
@@ -127,7 +129,7 @@ class AdManager {
           DateTime.now().difference(_lastInterstitialShow!);
       if (timeSinceInterstitial.inMinutes < 2) {
         if (kDebugMode) {
-          print(
+          logVerbose(
               'Skipping app open ad - interstitial shown recently (${timeSinceInterstitial.inSeconds}s ago)');
         }
         return;
@@ -139,7 +141,7 @@ class AdManager {
       final timeSinceLastAppOpen = DateTime.now().difference(_lastAppOpenShow!);
       if (timeSinceLastAppOpen.inSeconds < 30) {
         if (kDebugMode) {
-          print('Skipping app open ad - shown too recently');
+          logVerbose('Skipping app open ad - shown too recently');
         }
         return;
       }
@@ -150,13 +152,13 @@ class AdManager {
     _appOpenAd!.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (ad) {
         if (kDebugMode) {
-          print('App open ad showed');
+          logVerbose('App open ad showed');
         }
         _lastAppOpenShow = DateTime.now();
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         if (kDebugMode) {
-          print('Failed to show app open ad: $error');
+          logVerbose('Failed to show app open ad: $error');
         }
         _isShowingAppOpenAd = false;
         ad.dispose();
@@ -165,7 +167,7 @@ class AdManager {
       },
       onAdDismissedFullScreenContent: (ad) {
         if (kDebugMode) {
-          print('App open ad dismissed');
+          logVerbose('App open ad dismissed');
         }
         _isShowingAppOpenAd = false;
         ad.dispose();
@@ -193,7 +195,7 @@ class AdManager {
           DateTime.now().difference(_lastInterstitialShow!);
       if (timeSinceInterstitial.inMinutes < 2) {
         if (kDebugMode) {
-          print(
+          logVerbose(
               'Skipping app open ad - interstitial shown recently (${timeSinceInterstitial.inSeconds}s ago)');
         }
         onCompleted?.call();
@@ -206,7 +208,7 @@ class AdManager {
       final timeSinceLastAppOpen = DateTime.now().difference(_lastAppOpenShow!);
       if (timeSinceLastAppOpen.inSeconds < 30) {
         if (kDebugMode) {
-          print('Skipping app open ad - shown too recently');
+          logVerbose('Skipping app open ad - shown too recently');
         }
         onCompleted?.call();
         return false;
@@ -218,13 +220,13 @@ class AdManager {
     _appOpenAd!.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (ad) {
         if (kDebugMode) {
-          print('App open ad showed');
+          logVerbose('App open ad showed');
         }
         _lastAppOpenShow = DateTime.now();
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         if (kDebugMode) {
-          print('Failed to show app open ad: $error');
+          logVerbose('Failed to show app open ad: $error');
         }
         _isShowingAppOpenAd = false;
         ad.dispose();
@@ -234,7 +236,7 @@ class AdManager {
       },
       onAdDismissedFullScreenContent: (ad) {
         if (kDebugMode) {
-          print('App open ad dismissed');
+          logVerbose('App open ad dismissed');
         }
         _isShowingAppOpenAd = false;
         ad.dispose();
@@ -265,14 +267,14 @@ class AdManager {
             _interstitialRetryTimer?.cancel();
             _interstitialRetryTimer = null;
             if (kDebugMode) {
-              print('Interstitial ad loaded successfully');
+              logVerbose('Interstitial ad loaded successfully');
             }
           },
           onAdFailedToLoad: (error) {
             _isLoadingInterstitial = false;
             _scheduleInterstitialRetry();
             if (kDebugMode) {
-              print('Failed to load interstitial ad: $error');
+              logVerbose('Failed to load interstitial ad: $error');
             }
           },
         ),
@@ -281,7 +283,7 @@ class AdManager {
       _isLoadingInterstitial = false;
       _scheduleInterstitialRetry();
       if (kDebugMode) {
-        print('Error loading interstitial ad: $e');
+        logVerbose('Error loading interstitial ad: $e');
       }
     }
   }
@@ -320,7 +322,7 @@ class AdManager {
   Future<void> showInterstitialAd() async {
     _interactionsSinceLastInterstitial++;
     if (kDebugMode) {
-      print(
+      logVerbose(
           'Interactions since last interstitial: $_interactionsSinceLastInterstitial');
     }
 
@@ -328,7 +330,7 @@ class AdManager {
     if (_interactionsSinceLastInterstitial <
         _minInteractionsBetweenInterstitials) {
       if (kDebugMode) {
-        print(
+        logVerbose(
           'Skipping interstitial ad - waiting for $_minInteractionsBetweenInterstitials interactions',
         );
       }
@@ -345,14 +347,14 @@ class AdManager {
     _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (ad) {
         if (kDebugMode) {
-          print('Interstitial ad showed');
+          logVerbose('Interstitial ad showed');
         }
         _lastInterstitialShow = DateTime.now();
         _interactionsSinceLastInterstitial = 0;
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         if (kDebugMode) {
-          print('Failed to show interstitial ad: $error');
+          logVerbose('Failed to show interstitial ad: $error');
         }
         ad.dispose();
         _interstitialAd = null;
@@ -360,7 +362,7 @@ class AdManager {
       },
       onAdDismissedFullScreenContent: (ad) {
         if (kDebugMode) {
-          print('Interstitial ad dismissed');
+          logVerbose('Interstitial ad dismissed');
         }
         ad.dispose();
         _interstitialAd = null;
@@ -373,9 +375,19 @@ class AdManager {
 
   // Dispose method for cleanup
   void dispose() {
+    _disableAds();
+  }
+
+  void _disableAds() {
     _appOpenAd?.dispose();
+    _appOpenAd = null;
+    _appOpenAdLoadTime = null;
     _interstitialAd?.dispose();
+    _interstitialAd = null;
     _interstitialRetryTimer?.cancel();
     _interstitialRetryTimer = null;
+    _isLoadingInterstitial = false;
+    _isShowingAppOpenAd = false;
+    _isInitialized = false;
   }
 }

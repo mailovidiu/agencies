@@ -10,6 +10,7 @@ import 'screens/splash_screen.dart';
 import 'ads/app_lifecycle_manager.dart';
 import 'ads/ad_manager.dart';
 import 'theme.dart';
+import 'utils/app_logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,25 +22,25 @@ void main() async {
   try {
     firebaseReady = await firebaseInit.initializeFirebase();
     if (firebaseReady) {
-      print('🔥 Firebase initialized and ready for production use');
+      logVerbose('🔥 Firebase initialized and ready for production use');
     } else {
-      print('⚠️  Firebase initialization failed, using hybrid mode');
+      logError('⚠️  Firebase initialization failed, using hybrid mode');
     }
   } catch (e) {
-    print('❌ Firebase initialization error: $e');
+    logError('❌ Firebase initialization error: $e');
   }
 
   // Initialize app services (consent, tracking, ads)
   try {
     await AppInitializationService().initialize();
   } catch (e) {
-    print('❌ App initialization error: $e');
+    logError('❌ App initialization error: $e');
   }
 
   // Always use hybrid repository for maximum compatibility
   final departmentRepository = HybridDepartmentRepository();
   await departmentRepository.initialize();
-  print(
+  logVerbose(
       '🗄️  Hybrid repository initialized - Status: ${departmentRepository.connectionStatus}');
 
   runApp(MyApp(

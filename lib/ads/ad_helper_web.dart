@@ -9,6 +9,7 @@ class AdHelper {
   static String get appOpenAdUnitId => '';
   static String get interstitialAdUnitId => '';
   static String get nativeAdUnitId => '';
+  static String get collapsibleBannerAdUnitId => '';
 
   // Initialize Mobile Ads SDK (no-op on web)
   static Future<void> initializeAds() async {

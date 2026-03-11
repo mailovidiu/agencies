@@ -57,6 +57,24 @@ class AdHelper {
     throw UnsupportedError('Unsupported platform');
   }
 
+  // Collapsible Banner Ad Unit IDs
+  static String get collapsibleBannerAdUnitId {
+    if (isTestMode) {
+      if (Platform.isAndroid) {
+        return 'ca-app-pub-3940256099942544/2014213617';
+      } else if (Platform.isIOS) {
+        return 'ca-app-pub-3940256099942544/8388050270';
+      }
+    }
+
+    if (Platform.isAndroid) {
+      return 'ca-app-pub-6899384815833400/7946272035';
+    } else if (Platform.isIOS) {
+      return 'ca-app-pub-6899384815833400/1895869008';
+    }
+    throw UnsupportedError('Unsupported platform');
+  }
+
   // Initialize Mobile Ads SDK
   static Future<void> initializeAds() async {
     if (kDebugMode) {

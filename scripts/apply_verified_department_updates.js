@@ -5,7 +5,7 @@
  *
  * Usage:
  *   GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/service-account.json \
- *   FIREBASE_PROJECT_ID=gov-dep-and-agencyes \
+ *   FIREBASE_PROJECT_ID=u-s-departments-and-age-gnkn5k \
  *   node scripts/apply_verified_department_updates.js
  *
  * Optional:
@@ -24,7 +24,7 @@ const admin = require('firebase-admin');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 
 const PROJECT_ID =
-  process.env.FIREBASE_PROJECT_ID || 'gov-dep-and-agencyes';
+  process.env.FIREBASE_PROJECT_ID || 'u-s-departments-and-age-gnkn5k';
 const DRY_RUN = process.argv.includes('--dry-run');
 const FORCED_MODEL = process.env.DATA_MODEL;
 

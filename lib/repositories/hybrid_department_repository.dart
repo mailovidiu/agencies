@@ -5,6 +5,7 @@ import 'department_repository.dart';
 import 'firebase_department_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_logger.dart';
 
 enum WriteSyncStatus { synced, pending }
 
@@ -83,9 +84,11 @@ class HybridDepartmentRepository implements DepartmentRepository {
   FirebaseDepartmentRepository? _firebaseRepo;
   SharedPreferences? _prefs;
   bool _isFirebaseAvailable = false;
-  static const String _localDataKey = 'departments_cache';
-  static const String _pendingOpsKey = 'departments_pending_ops_v1';
+  static const String _localDataKeyPrefix = 'departments_cache';
+  static const String _pendingOpsKeyPrefix = 'departments_pending_ops_v1';
   static const Duration _syncRetryInterval = Duration(seconds: 20);
+  String _localDataKey = _localDataKeyPrefix;
+  String _pendingOpsKey = _pendingOpsKeyPrefix;
 
   final List<_PendingDepartmentOperation> _pendingOperations = [];
   bool _isProcessingPendingOperations = false;
@@ -93,12 +96,32 @@ class HybridDepartmentRepository implements DepartmentRepository {
   WriteSyncStatus _lastWriteSyncStatus = WriteSyncStatus.synced;
   String? _lastWriteSyncMessage;
 
+  void _configureStorageKeys() {
+    final projectId = _resolveStorageProjectId();
+    _localDataKey = '${_localDataKeyPrefix}_$projectId';
+    _pendingOpsKey = '${_pendingOpsKeyPrefix}_$projectId';
+  }
+
+  String _resolveStorageProjectId() {
+    if (Firebase.apps.isEmpty) {
+      return 'default';
+    }
+
+    final projectId = Firebase.app().options.projectId.trim();
+    if (projectId.isEmpty) {
+      return 'default';
+    }
+
+    return projectId.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
+  }
+
   /// Initialize the hybrid repository
   Future<void> initialize() async {
     try {
       // Initialize SharedPreferences for local caching
       _prefs = await SharedPreferences.getInstance();
-      print('Local storage initialized successfully');
+      logVerbose('Local storage initialized successfully');
+      _configureStorageKeys();
 
       await _loadPendingOperations();
 
@@ -106,16 +129,16 @@ class HybridDepartmentRepository implements DepartmentRepository {
       if (Firebase.apps.isNotEmpty) {
         _firebaseRepo = FirebaseDepartmentRepository();
         _isFirebaseAvailable = true;
-        print('Firebase repository initialized successfully');
+        logVerbose('Firebase repository initialized successfully');
 
         // Try to sync from Firebase to local cache
         await _syncFromFirebaseToLocal();
         await _processPendingOperations();
       } else {
-        print('Firebase not available, using local storage only');
+        logVerbose('Firebase not available, using local storage only');
       }
     } catch (e) {
-      print('Hybrid repository initialization warning: $e');
+      logVerbose('Hybrid repository initialization warning: $e');
       _isFirebaseAvailable = false;
     }
 
@@ -167,7 +190,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
         _setSyncedState();
       }
     } catch (e) {
-      print('Failed to load pending operations: $e');
+      logVerbose('Failed to load pending operations: $e');
       _pendingOperations.clear();
       _setSyncedState();
     }
@@ -182,7 +205,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
       );
       await _prefs!.setString(_pendingOpsKey, raw);
     } catch (e) {
-      print('Failed to persist pending operations: $e');
+      logVerbose('Failed to persist pending operations: $e');
     }
   }
 
@@ -280,7 +303,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
             updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
           );
           changed = true;
-          print('Pending operation retry scheduled: $e');
+          logVerbose('Pending operation retry scheduled: $e');
         }
       }
 
@@ -348,7 +371,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
         }
         return;
       } catch (e) {
-        print('Remote write failed, queueing for retry: $e');
+        logVerbose('Remote write failed, queueing for retry: $e');
       }
     }
 
@@ -371,10 +394,10 @@ class HybridDepartmentRepository implements DepartmentRepository {
       final remoteDepartments = await _firebaseRepo!.getDepartments();
       final mergedDepartments = _applyPendingOperations(remoteDepartments);
       await _saveToLocalCache(mergedDepartments);
-      print(
+      logVerbose(
           'Synced ${mergedDepartments.length} departments from Firebase to local cache');
     } catch (e) {
-      print('Failed to sync from Firebase: $e');
+      logVerbose('Failed to sync from Firebase: $e');
     }
   }
 
@@ -387,7 +410,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
       final jsonString = jsonEncode(jsonList);
       await _prefs!.setString(_localDataKey, jsonString);
     } catch (e) {
-      print('Failed to save to local cache: $e');
+      logVerbose('Failed to save to local cache: $e');
     }
   }
 
@@ -404,7 +427,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
           .map((json) => Department.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Failed to load from local cache: $e');
+      logVerbose('Failed to load from local cache: $e');
       return [];
     }
   }
@@ -413,7 +436,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
   Future<void> _ensureSampleData() async {
     final existingDepartments = await _loadFromLocalCache();
     if (existingDepartments.isEmpty) {
-      print('No data found, loading sample departments');
+      logVerbose('No data found, loading sample departments');
       final sampleDepartments = _getSampleDepartments();
       await _saveToLocalCache(sampleDepartments);
     }
@@ -431,7 +454,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
         await _saveToLocalCache(mergedDepartments);
         return mergedDepartments;
       } catch (e) {
-        print('Firebase read failed, falling back to local cache: $e');
+        logVerbose('Firebase read failed, falling back to local cache: $e');
       }
     }
 
@@ -541,7 +564,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
         final popularDepartments = await _firebaseRepo!.getPopularDepartments();
         return popularDepartments;
       } catch (e) {
-        print(
+        logVerbose(
             'Firebase popular departments query failed, falling back to local: $e');
       }
     }
@@ -560,7 +583,7 @@ class HybridDepartmentRepository implements DepartmentRepository {
             await _firebaseRepo!.getDepartmentsByParent(parentId);
         return childDepartments;
       } catch (e) {
-        print(
+        logVerbose(
             'Firebase parent departments query failed, falling back to local: $e');
       }
     }

@@ -6,7 +6,7 @@ import '../services/consent_service.dart';
 
 class NativeAdWidget extends StatefulWidget {
   final double height;
-  
+
   const NativeAdWidget({super.key, this.height = 300});
 
   @override
@@ -20,19 +20,38 @@ class _NativeAdWidgetState extends State<NativeAdWidget> {
   @override
   void initState() {
     super.initState();
+    ConsentService.instance.addListener(_handleConsentChanged);
     if (ConsentService.instance.shouldShowAds) {
       _loadNativeAd();
     }
   }
 
+  void _handleConsentChanged() {
+    if (!mounted) return;
+
+    if (!ConsentService.instance.shouldShowAds) {
+      setState(_disposeNativeAd);
+      return;
+    }
+
+    if (_nativeAd == null) {
+      _loadNativeAd();
+    } else {
+      setState(() {});
+    }
+  }
+
   void _loadNativeAd() {
     if (!ConsentService.instance.shouldShowAds) return;
-    _nativeAd = NativeAd(
+
+    _disposeNativeAd();
+
+    final nativeAd = NativeAd(
       adUnitId: AdHelper.nativeAdUnitId,
       request: const AdRequest(),
       listener: NativeAdListener(
         onAdLoaded: (ad) {
-          if (mounted) {
+          if (mounted && identical(_nativeAd, ad)) {
             setState(() {
               _isAdLoaded = true;
             });
@@ -46,6 +65,12 @@ class _NativeAdWidgetState extends State<NativeAdWidget> {
             print('Failed to load native ad: $error');
           }
           ad.dispose();
+          if (mounted && identical(_nativeAd, ad)) {
+            setState(() {
+              _nativeAd = null;
+              _isAdLoaded = false;
+            });
+          }
         },
       ),
       nativeTemplateStyle: NativeTemplateStyle(
@@ -76,12 +101,20 @@ class _NativeAdWidgetState extends State<NativeAdWidget> {
       ),
     );
 
-    _nativeAd!.load();
+    _nativeAd = nativeAd;
+    nativeAd.load();
+  }
+
+  void _disposeNativeAd() {
+    _nativeAd?.dispose();
+    _nativeAd = null;
+    _isAdLoaded = false;
   }
 
   @override
   void dispose() {
-    _nativeAd?.dispose();
+    ConsentService.instance.removeListener(_handleConsentChanged);
+    _disposeNativeAd();
     super.dispose();
   }
 
@@ -91,7 +124,7 @@ class _NativeAdWidgetState extends State<NativeAdWidget> {
     if (!ConsentService.instance.shouldShowAds) {
       return const SizedBox.shrink();
     }
-    
+
     if (!_isAdLoaded || _nativeAd == null) {
       return SizedBox(
         height: widget.height,

@@ -85,6 +85,32 @@ service cloud.firestore {
       ];
     }
 
+    function validateNotificationData(data) {
+      return data != null &&
+             data.keys().hasAll([
+               'departmentId',
+               'departmentName',
+               'category',
+               'topic',
+               'title',
+               'body',
+               'sent'
+             ]) &&
+             data.departmentId is string &&
+             data.departmentId.size() > 0 &&
+             data.departmentName is string &&
+             data.departmentName.size() > 0 &&
+             data.category is string &&
+             validateDepartmentCategory(data.category) &&
+             data.topic is string &&
+             data.topic.size() > 0 &&
+             data.title is string &&
+             data.title.size() > 0 &&
+             data.body is string &&
+             data.body.size() > 0 &&
+             data.sent is bool;
+    }
+
     // Departments collection - public read, admin write
     match /departments/{departmentId} {
       allow read: if true;
@@ -147,6 +173,14 @@ service cloud.firestore {
       allow create: if isAdmin() &&
         request.resource.data.adminUid == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    // Notification records used by admin tooling before sending FCM campaigns
+    match /notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin() &&
+        validateNotificationData(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /{document=**} {

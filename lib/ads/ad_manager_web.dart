@@ -1,6 +1,5 @@
 // Web stub implementation for AdManager
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 
 class AdManager {
   static final AdManager _instance = AdManager._internal();
@@ -11,6 +10,12 @@ class AdManager {
   Future<void> initialize() async {
     if (kDebugMode) {
       print('AdManager: initialize called on web (no-op)');
+    }
+  }
+
+  Future<void> syncConsentState() async {
+    if (kDebugMode) {
+      print('AdManager: syncConsentState called on web (no-op)');
     }
   }
 

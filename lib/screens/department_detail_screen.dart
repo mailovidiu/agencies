@@ -7,7 +7,8 @@ import '../models/department.dart';
 import '../providers/department_provider.dart';
 import '../openai/openai_config.dart';
 import '../ads/ad_manager.dart';
-import '../ads/native_ad_view.dart';
+import '../ads/collapsible_banner_ad.dart';
+import '../widgets/ai_summary_card.dart';
 
 /// Detailed view screen for a government department or agency
 class DepartmentDetailScreen extends StatefulWidget {
@@ -23,18 +24,18 @@ class DepartmentDetailScreen extends StatefulWidget {
 }
 
 class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
+  static const double _expandedHeaderContentHeight = 96.0;
+  static const double _collapsedHeaderContentHeight = 56.0;
+
   String? _aiSummary;
   bool _isLoadingSummary = false;
   final TextEditingController _questionController = TextEditingController();
   final List<Map<String, String>> _qaHistory = [];
   bool _isLoadingAnswer = false;
-  final ScrollController _scrollController = ScrollController();
-  bool _isScrolled = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
     // Show interstitial ad when entering detail screen (with frequency control)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -43,21 +44,9 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     });
   }
 
-  void _onScroll() {
-    if (_scrollController.hasClients) {
-      final isScrolled = _scrollController.offset > 180;
-      if (isScrolled != _isScrolled) {
-        setState(() {
-          _isScrolled = isScrolled;
-        });
-      }
-    }
-  }
-
   @override
   void dispose() {
     _questionController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -67,6 +56,10 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final expandedAppBarHeight = topPadding + _expandedHeaderContentHeight;
+    final collapsedAppBarHeight = topPadding + _collapsedHeaderContentHeight;
+    final headerCollapseRange = expandedAppBarHeight - collapsedAppBarHeight;
 
     return Consumer<DepartmentProvider>(
       builder: (context, provider, child) {
@@ -74,172 +67,108 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
 
         return Scaffold(
           backgroundColor: colorScheme.surface,
+          bottomNavigationBar: const SafeArea(
+            top: false,
+            child: CollapsibleBannerAd(),
+          ),
           body: CustomScrollView(
-            controller: _scrollController,
             slivers: [
-              // Premium Header
+              // Compact Header
               SliverAppBar(
-                expandedHeight: 320.0,
+                expandedHeight: expandedAppBarHeight,
+                collapsedHeight: collapsedAppBarHeight,
+                toolbarHeight: _collapsedHeaderContentHeight,
                 floating: false,
                 pinned: true,
-                stretch: true,
                 backgroundColor: colorScheme.primary,
                 scrolledUnderElevation: 0,
                 elevation: 0,
+                titleSpacing: 0,
+                leadingWidth: 56,
+                flexibleSpace: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final expansion = headerCollapseRange == 0
+                        ? 0.0
+                        : ((constraints.maxHeight - collapsedAppBarHeight) /
+                                headerCollapseRange)
+                            .clamp(0.0, 1.0);
+
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                colorScheme.primary,
+                                colorScheme.tertiary,
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: -14,
+                          right: -14,
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: -12,
+                          left: -10,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        if (expansion > 0.0)
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            bottom: 8,
+                            child: Opacity(
+                              opacity: expansion,
+                              child: Transform.translate(
+                                offset: Offset(0, 8 * (1 - expansion)),
+                                child: _buildExpandedHeaderRow(context),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
                 leading: IconButton(
                   icon: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: _isScrolled ? Colors.transparent : Colors.black26,
+                      color: Colors.black26,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   onPressed: () => Navigator.pop(context),
                 ),
-                flexibleSpace: FlexibleSpaceBar(
-                  stretchModes: const [
-                    StretchMode.zoomBackground,
-                    StretchMode.blurBackground,
-                  ],
-                  expandedTitleScale: 1.0, // Keep title fixed size when collapsed
-                  titlePadding: EdgeInsets.zero,
-                  title: _isScrolled
-                      ? Container(
-                          color: colorScheme.primary, // Solid background when collapsed
-                          padding: const EdgeInsets.fromLTRB(50, 0, 16, 14),
-                          alignment: Alignment.bottomCenter,
-                          height: kToolbarHeight + MediaQuery.of(context).padding.top,
-                          child: Text(
-                            widget.department.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.titleMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      : null, // No title when expanded, we use the custom background content
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Gradient Background
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              colorScheme.primary,
-                              colorScheme.tertiary,
-                            ],
-                          ),
-                        ),
-                      ),
-                      // Decorative Pattern/Mesh
-                      Positioned(
-                        top: -50,
-                        right: -50,
-                        child: Container(
-                          width: 200,
-                          height: 200,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: -30,
-                        left: -30,
-                        child: Container(
-                          width: 140,
-                          height: 140,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                      
-                      // Content Overlay
-                      SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const SizedBox(height: 16),
-                              // Large Icon Container
-                              Hero(
-                                tag: 'dept_icon_${widget.department.id}',
-                                child: Container(
-                                  padding: const EdgeInsets.all(24),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.3),
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.1),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 10),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    _getCategoryIcon(widget.department.category),
-                                    size: 64,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              // Department Name
-                              Text(
-                                widget.department.name,
-                                style: textTheme.headlineSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  height: 1.2,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withValues(alpha: 0.2),
-                                      offset: const Offset(0, 2),
-                                      blurRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 12),
-                              // Category Badge in Header
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                                ),
-                                child: Text(
-                                  widget.department.category.displayName,
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                title: Text(
+                  widget.department.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    height: 1.0,
                   ),
                 ),
                 actions: [
@@ -250,18 +179,21 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                         provider.toggleFavorite(widget.department.id);
                       },
                       style: IconButton.styleFrom(
-                        backgroundColor: _isScrolled ? Colors.transparent : Colors.black26,
+                        backgroundColor: Colors.black26,
                       ),
                       icon: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
-                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                        transitionBuilder: (child, anim) =>
+                            ScaleTransition(scale: anim, child: child),
                         child: Icon(
                           isFavorite ? Icons.favorite : Icons.favorite_border,
                           key: ValueKey(isFavorite),
                           color: isFavorite ? Colors.redAccent : Colors.white,
                         ),
                       ),
-                      tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                      tooltip: isFavorite
+                          ? 'Remove from favorites'
+                          : 'Add to favorites',
                     ),
                   ),
                 ],
@@ -272,20 +204,19 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: colorScheme.surface,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(24)),
                   ),
-                  transform: Matrix4.translationValues(0, -20, 0), // Slight overlap with header
+                  transform: Matrix4.translationValues(
+                      0, -4, 0), // Slight overlap with header
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 40),
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Quick Actions & Stats
-                        _buildQuickStats(context),
-                        const SizedBox(height: 32),
-
                         // About Section
-                        _buildSectionHeader(context, 'About', Icons.info_outline),
+                        _buildSectionHeader(
+                            context, 'About', Icons.info_outline),
                         const SizedBox(height: 12),
                         Text(
                           widget.department.description,
@@ -299,24 +230,33 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            children: widget.department.tags.map((tag) => _buildTag(context, tag)).toList(),
+                            children: widget.department.tags
+                                .map((tag) => _buildTag(context, tag))
+                                .toList(),
                           ),
                         ],
                         const SizedBox(height: 32),
 
                         // AI Summary Section - Premium Feature
-                        _buildAISummarySection(context),
+                        AiSummaryCard(
+                          summary: _aiSummary,
+                          isLoading: _isLoadingSummary,
+                          onGenerate: _generateSummary,
+                          onCopy: (text) => _copyToClipboard(context, text),
+                        ),
                         const SizedBox(height: 32),
 
                         // Contact Information
-                        _buildSectionHeader(context, 'Contact Information', Icons.contact_phone_outlined),
+                        _buildSectionHeader(context, 'Contact Information',
+                            Icons.contact_phone_outlined),
                         const SizedBox(height: 16),
                         _buildContactSection(context),
                         const SizedBox(height: 32),
 
                         // Services
                         if (widget.department.services.isNotEmpty) ...[
-                          _buildSectionHeader(context, 'Services & Programs', Icons.supervised_user_circle_outlined),
+                          _buildSectionHeader(context, 'Services & Programs',
+                              Icons.supervised_user_circle_outlined),
                           const SizedBox(height: 16),
                           _buildServicesSection(context),
                           const SizedBox(height: 32),
@@ -324,7 +264,8 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
 
                         // Office Hours
                         if (widget.department.officeHours != null) ...[
-                          _buildSectionHeader(context, 'Office Hours', Icons.access_time_outlined),
+                          _buildSectionHeader(context, 'Office Hours',
+                              Icons.access_time_outlined),
                           const SizedBox(height: 16),
                           _buildOfficeHoursSection(context),
                           const SizedBox(height: 32),
@@ -332,7 +273,8 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
 
                         // Location
                         if (widget.department.location != null) ...[
-                          _buildSectionHeader(context, 'Location', Icons.location_on_outlined),
+                          _buildSectionHeader(
+                              context, 'Location', Icons.location_on_outlined),
                           const SizedBox(height: 16),
                           _buildLocationSection(context),
                           const SizedBox(height: 32),
@@ -340,11 +282,6 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
 
                         // Q&A Assistant
                         _buildQASection(context),
-                        
-                        const SizedBox(height: 32),
-                        const NativeAdView(factoryId: 'medium'),
-                        const SizedBox(height: 32),
-
                       ],
                     ),
                   ),
@@ -357,7 +294,8 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
+  Widget _buildSectionHeader(
+      BuildContext context, String title, IconData icon) {
     return Row(
       children: [
         Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
@@ -365,60 +303,92 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
         Text(
           title,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
         ),
       ],
     );
   }
 
-  Widget _buildQuickStats(BuildContext context) {
+  Widget _buildExpandedHeaderRow(BuildContext context) {
     return Row(
       children: [
-        if (widget.department.isPopular)
-          Expanded(
-            child: _buildStatCard(
-              context, 
-              'Popular', 
-              Icons.trending_up, 
-              Colors.orange.shade100, 
-              Colors.orange.shade800
+        Hero(
+          tag: 'dept_icon_${widget.department.id}',
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.24),
+              ),
+            ),
+            child: Icon(
+              _getCategoryIcon(widget.department.category),
+              size: 16,
+              color: Colors.white,
             ),
           ),
-        if (widget.department.isPopular) const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            context, 
-            widget.department.isActive ? 'Active' : 'Inactive',
-            widget.department.isActive ? Icons.check_circle : Icons.cancel,
-            widget.department.isActive ? Colors.green.shade100 : Colors.grey.shade200,
-            widget.department.isActive ? Colors.green.shade800 : Colors.grey.shade700,
+        ),
+        if (widget.department.isPopular) ...[
+          const SizedBox(width: 8),
+          _buildHeaderStatusChip(
+            context,
+            label: 'Popular',
+            icon: Icons.trending_up,
+            background: Colors.orange.shade100,
+            foreground: Colors.orange.shade900,
+            border: Colors.orange.shade200,
           ),
+        ],
+        const SizedBox(width: 8),
+        _buildHeaderStatusChip(
+          context,
+          label: widget.department.isActive ? 'Active' : 'Inactive',
+          icon: widget.department.isActive ? Icons.check_circle : Icons.cancel,
+          background: widget.department.isActive
+              ? Colors.green.shade100
+              : Colors.grey.shade200,
+          foreground: widget.department.isActive
+              ? Colors.green.shade900
+              : Colors.grey.shade700,
+          border: widget.department.isActive
+              ? Colors.green.shade200
+              : Colors.grey.shade300,
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(BuildContext context, String label, IconData icon, Color bg, Color fg) {
+  Widget _buildHeaderStatusChip(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required Color background,
+    required Color foreground,
+    required Color border,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: bg.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: bg),
+        color: background.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: fg),
-          const SizedBox(width: 8),
+          Icon(icon, size: 14, color: foreground),
+          const SizedBox(width: 6),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: fg,
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: foreground,
+                  fontWeight: FontWeight.w700,
+                ),
           ),
         ],
       ),
@@ -429,134 +399,21 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2)),
+        border: Border.all(
+            color:
+                Theme.of(context).colorScheme.outline.withValues(alpha: 0.2)),
       ),
       child: Text(
         tag,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAISummarySection(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primaryContainer.withValues(alpha: 0.4),
-            colorScheme.surface,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.auto_awesome, color: colorScheme.primary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'AI Summary',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    'Powered by OpenAI',
-                    style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.outline),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              if (!_isLoadingSummary && _aiSummary == null)
-                FilledButton.tonalIcon(
-                  onPressed: _generateSummary,
-                  icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                  label: const Text('Generate'),
-                  style: FilledButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_isLoadingSummary)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    const CircularProgressIndicator(strokeWidth: 3),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Analyzing department data...',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (_aiSummary != null)
-            Column(
-              children: [
-                Text(
-                  _aiSummary!,
-                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      onPressed: _generateSummary,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Regenerate'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: colorScheme.secondary,
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => _copyToClipboard(context, _aiSummary!),
-                      icon: const Icon(Icons.copy, size: 18),
-                      label: const Text('Copy'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: colorScheme.secondary,
-                      ),
-                    ),
-                  ],
-                )
-              ],
-            )
-          else
-            Text(
-              'Get a quick, AI-generated overview of this department\'s key functions and services.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                fontStyle: FontStyle.italic,
-              ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
             ),
-        ],
       ),
     );
   }
@@ -602,15 +459,15 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
   }
 
   Widget _buildContactTile(
-    BuildContext context, 
-    IconData icon, 
-    String label, 
+    BuildContext context,
+    IconData icon,
+    String label,
     String value, {
     VoidCallback? onTap,
     bool isPrimary = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     return InkWell(
       onTap: onTap,
       onLongPress: () => _copyToClipboard(context, value),
@@ -618,11 +475,11 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isPrimary 
+          color: isPrimary
               ? colorScheme.primaryContainer.withValues(alpha: 0.3)
               : colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(16),
-          border: isPrimary 
+          border: isPrimary
               ? Border.all(color: colorScheme.primary.withValues(alpha: 0.2))
               : null,
         ),
@@ -633,14 +490,21 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
               decoration: BoxDecoration(
                 color: isPrimary ? colorScheme.primary : colorScheme.surface,
                 shape: BoxShape.circle,
-                boxShadow: isPrimary 
-                  ? [BoxShadow(color: colorScheme.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))]
-                  : null,
+                boxShadow: isPrimary
+                    ? [
+                        BoxShadow(
+                            color: colorScheme.primary.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2))
+                      ]
+                    : null,
               ),
               child: Icon(
-                icon, 
-                size: 20, 
-                color: isPrimary ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                icon,
+                size: 20,
+                color: isPrimary
+                    ? colorScheme.onPrimary
+                    : colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(width: 16),
@@ -651,16 +515,18 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                   Text(
                     label,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     value,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isPrimary ? colorScheme.primary : colorScheme.onSurface,
-                    ),
+                          fontWeight: FontWeight.w600,
+                          color: isPrimary
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -682,7 +548,10 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
   Widget _buildServicesSection(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -691,18 +560,20 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
           return Column(
             children: [
               ListTile(
-                leading: const Icon(Icons.check_circle, size: 20, color: Colors.green),
+                leading: const Icon(Icons.check_circle,
+                    size: 20, color: Colors.green),
                 title: Text(entry.value),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 visualDensity: VisualDensity.compact,
               ),
               if (!isLast)
                 Divider(
-                  height: 1, 
-                  indent: 56, 
-                  endIndent: 16, 
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.1)
-                ),
+                    height: 1,
+                    indent: 56,
+                    endIndent: 16,
+                    color:
+                        Theme.of(context).dividerColor.withValues(alpha: 0.1)),
             ],
           );
         }).toList(),
@@ -719,7 +590,8 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
+        border:
+            Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -740,46 +612,49 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
             )
           else
             ...hours.weeklyHours.entries.map((entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    entry.key.substring(0, 1).toUpperCase() + entry.key.substring(1),
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        entry.key.substring(0, 1).toUpperCase() +
+                            entry.key.substring(1),
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        entry.value,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
                   ),
-                  Text(
-                    entry.value,
-                    style: theme.textTheme.bodyMedium,
+                )),
+          if (hours.specialInstructions != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color:
+                    theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline,
+                      size: 18, color: theme.colorScheme.onSecondaryContainer),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      hours.specialInstructions!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSecondaryContainer,
+                      ),
+                    ),
                   ),
                 ],
               ),
-            )),
-            
-            if (hours.specialInstructions != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 18, color: theme.colorScheme.onSecondaryContainer),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        hours.specialInstructions!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSecondaryContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
+          ],
         ],
       ),
     );
@@ -800,67 +675,73 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
               height: 100,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+                color:
+                    theme.colorScheme.tertiaryContainer.withValues(alpha: 0.3),
               ),
               child: Center(
                 child: Icon(
-                  Icons.map_outlined, 
+                  Icons.map_outlined,
                   size: 40,
-                  color: theme.colorScheme.onTertiaryContainer.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onTertiaryContainer
+                      .withValues(alpha: 0.5),
                 ),
               ),
             ),
-             Padding(
-               padding: const EdgeInsets.all(16),
-               child: Column(
-                 crossAxisAlignment: CrossAxisAlignment.start,
-                 children: [
-                   Row(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       Icon(Icons.location_on, color: theme.colorScheme.primary, size: 20),
-                       const SizedBox(width: 12),
-                       Expanded(
-                         child: Text(
-                           location.formattedAddress,
-                           style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
-                         ),
-                       ),
-                     ],
-                   ),
-                   const SizedBox(height: 16),
-                   FilledButton.icon(
-                     onPressed: () => _launchMaps(location.formattedAddress),
-                     icon: const Icon(Icons.directions),
-                     label: const Text('Get Directions'),
-                     style: FilledButton.styleFrom(
-                       minimumSize: const Size(double.infinity, 44),
-                     ),
-                   ),
-                 ],
-               ),
-             ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.location_on,
+                          color: theme.colorScheme.primary, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          location.formattedAddress,
+                          style:
+                              theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => _launchMaps(location.formattedAddress),
+                    icon: const Icon(Icons.directions),
+                    label: const Text('Get Directions'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 44),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
-  
+
   Widget _buildQASection(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(context, 'Ask AI Assistant', Icons.chat_bubble_outline),
+        _buildSectionHeader(
+            context, 'Ask AI Assistant', Icons.chat_bubble_outline),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colorScheme.surface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+            border:
+                Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
             boxShadow: [
               BoxShadow(
                 color: colorScheme.shadow.withValues(alpha: 0.05),
@@ -878,7 +759,9 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                   alignment: Alignment.center,
                   child: Column(
                     children: [
-                      Icon(Icons.forum_outlined, size: 40, color: colorScheme.secondary.withValues(alpha: 0.3)),
+                      Icon(Icons.forum_outlined,
+                          size: 40,
+                          color: colorScheme.secondary.withValues(alpha: 0.3)),
                       const SizedBox(height: 12),
                       Text(
                         'Have a question about this department?',
@@ -890,7 +773,8 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                       Text(
                         'Ask our AI assistant for instant help',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                          color: colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -900,52 +784,55 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                 Column(
                   children: [
                     ..._qaHistory.reversed.take(2).map((qa) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(16),
-                                  topRight: Radius.circular(4),
-                                  bottomLeft: Radius.circular(16),
-                                  bottomRight: Radius.circular(16),
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primary,
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(16),
+                                      topRight: Radius.circular(4),
+                                      bottomLeft: Radius.circular(16),
+                                      bottomRight: Radius.circular(16),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    qa['question']!,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: colorScheme.onPrimary),
+                                  ),
                                 ),
                               ),
-                              child: Text(
-                                qa['question']!,
-                                style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onPrimary),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: colorScheme.secondaryContainer,
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(4),
-                                  topRight: Radius.circular(16),
-                                  bottomLeft: Radius.circular(16),
-                                  bottomRight: Radius.circular(16),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.secondaryContainer,
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(4),
+                                      topRight: Radius.circular(16),
+                                      bottomLeft: Radius.circular(16),
+                                      bottomRight: Radius.circular(16),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    qa['answer']!,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                        color:
+                                            colorScheme.onSecondaryContainer),
+                                  ),
                                 ),
                               ),
-                              child: Text(
-                                qa['answer']!,
-                                style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSecondaryContainer),
-                              ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
-                    )),
+                        )),
                     if (_qaHistory.length > 2)
                       TextButton(
                         onPressed: () => _showFullQAHistory(context),
@@ -954,9 +841,9 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                     const Divider(height: 32),
                   ],
                 ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Input Area
               Row(
                 children: [
@@ -966,12 +853,14 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                       decoration: InputDecoration(
                         hintText: 'Type your question...',
                         filled: true,
-                        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        fillColor: colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.5),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 20),
                       ),
                       onSubmitted: (_) => _askQuestion(),
                       enabled: !_isLoadingAnswer,
@@ -986,16 +875,16 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                     child: IconButton(
                       onPressed: _isLoadingAnswer ? null : _askQuestion,
                       color: colorScheme.onPrimary,
-                      icon: _isLoadingAnswer 
-                        ? SizedBox(
-                            width: 20, 
-                            height: 20, 
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2, 
-                              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
-                            )
-                          )
-                        : const Icon(Icons.send_rounded, size: 20),
+                      icon: _isLoadingAnswer
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    colorScheme.onPrimary),
+                              ))
+                          : const Icon(Icons.send_rounded, size: 20),
                     ),
                   ),
                 ],
@@ -1007,15 +896,11 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     );
   }
 
-
-
-
-
   // Helper Methods (Logic kept from original file)
-  
+
   Future<void> _generateSummary() async {
     if (_isLoadingSummary) return;
-    
+
     setState(() {
       _isLoadingSummary = true;
       _aiSummary = null;
@@ -1032,8 +917,9 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
         'services': widget.department.services,
       };
 
-      final summary = await OpenAIService.generateDepartmentSummary(departmentData);
-      
+      final summary =
+          await OpenAIService.generateDepartmentSummary(departmentData);
+
       setState(() {
         _aiSummary = summary;
         _isLoadingSummary = false;
@@ -1042,7 +928,7 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
       setState(() {
         _isLoadingSummary = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1090,7 +976,7 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
       setState(() {
         _isLoadingAnswer = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1119,11 +1005,15 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
           child: Column(
             children: [
               const SizedBox(height: 12),
-              Container( // Drag handle
+              Container(
+                // Drag handle
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1133,9 +1023,10 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                   children: [
                     Text(
                       'Q&A History',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                     ),
                     const Spacer(),
                     IconButton(
@@ -1149,8 +1040,10 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                 child: ListView.separated(
                   controller: scrollController,
                   itemCount: _qaHistory.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  separatorBuilder: (context, index) => const SizedBox(height: 24),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 24),
                   itemBuilder: (context, index) {
                     final qa = _qaHistory.reversed.toList()[index];
                     return Column(
@@ -1161,7 +1054,9 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                           children: [
                             CircleAvatar(
                               radius: 16,
-                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer,
                               child: const Icon(Icons.person, size: 16),
                             ),
                             const SizedBox(width: 12),
@@ -1169,7 +1064,10 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest
+                                      .withValues(alpha: 0.3),
                                   borderRadius: const BorderRadius.only(
                                     topRight: Radius.circular(16),
                                     bottomLeft: Radius.circular(16),
@@ -1190,7 +1088,10 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.1),
                                   borderRadius: const BorderRadius.only(
                                     topLeft: Radius.circular(16),
                                     bottomLeft: Radius.circular(16),
@@ -1203,8 +1104,12 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                             const SizedBox(width: 12),
                             CircleAvatar(
                               radius: 16,
-                              backgroundColor: Theme.of(context).colorScheme.primary,
-                              child: Icon(Icons.auto_awesome, size: 16, color: Theme.of(context).colorScheme.onPrimary),
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primary,
+                              child: Icon(Icons.auto_awesome,
+                                  size: 16,
+                                  color:
+                                      Theme.of(context).colorScheme.onPrimary),
                             ),
                           ],
                         ),
@@ -1266,8 +1171,6 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
     }
   }
 
-
-
   void _launchPhone(String phone) async {
     final uri = Uri.parse('tel:$phone');
     if (await canLaunchUrl(uri)) {
@@ -1283,14 +1186,16 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
   }
 
   void _launchWebsite(String website) async {
-    final uri = Uri.parse(website.startsWith('http') ? website : 'https://$website');
+    final uri =
+        Uri.parse(website.startsWith('http') ? website : 'https://$website');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     }
   }
 
   void _launchMaps(String address) async {
-    final uri = Uri.parse('https://maps.google.com/search?q=${Uri.encodeComponent(address)}');
+    final uri = Uri.parse(
+        'https://maps.google.com/search?q=${Uri.encodeComponent(address)}');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     }

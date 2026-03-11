@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/department.dart';
+import '../models/task_finder.dart';
 import '../services/department_service.dart';
 
 /// Provider for managing department and agency data and app state (fallback implementation)
@@ -11,7 +12,7 @@ class DepartmentProvider with ChangeNotifier {
   // State variables
   List<Department> _departments = [];
   List<Department> _filteredDepartments = [];
-  List<String> _favoriteDepartmentIds = [];
+  final List<String> _favoriteDepartmentIds = [];
   bool _isLoading = false;
   String? _errorMessage;
   String _searchQuery = '';
@@ -38,6 +39,31 @@ class DepartmentProvider with ChangeNotifier {
     return allTags.toList()..sort();
   }
 
+  List<String> get taskFinderPromptChips {
+    final chips = <String>{
+      'Benefits',
+      'Passport',
+      'Student aid',
+      'Jobs',
+      'Housing',
+      'Health',
+      'Veterans',
+    };
+
+    for (final tag in availableTags) {
+      if (chips.length >= 12) {
+        break;
+      }
+
+      final normalizedTag = tag.trim();
+      if (normalizedTag.isNotEmpty) {
+        chips.add(normalizedTag);
+      }
+    }
+
+    return chips.toList();
+  }
+
   List<Department> get popularDepartments =>
       _departments.where((dept) => dept.isPopular).toList();
 
@@ -57,6 +83,30 @@ class DepartmentProvider with ChangeNotifier {
     await loadDepartments();
   }
 
+  Future<Department?> getDepartmentById(String departmentId) async {
+    for (final department in _departments) {
+      if (department.id == departmentId) {
+        return department;
+      }
+    }
+
+    try {
+      return await _departmentService.getDepartmentById(departmentId);
+    } catch (e) {
+      debugPrint('Failed to fetch department by ID ($departmentId): $e');
+      return null;
+    }
+  }
+
+  Department? getDepartmentByIdSync(String departmentId) {
+    for (final department in _departments) {
+      if (department.id == departmentId) {
+        return department;
+      }
+    }
+    return null;
+  }
+
   Future<void> retryPendingSyncWrites() async {
     await _departmentService.retryPendingSyncWrites();
     await loadDepartments();
@@ -72,7 +122,8 @@ class DepartmentProvider with ChangeNotifier {
 
   void selectDepartment(String departmentId) {
     // Log activity (no Firebase analytics, just print)
-    print('Activity logged: select_department (Department: $departmentId)');
+    debugPrint(
+        'Activity logged: select_department (Department: $departmentId)');
   }
 
   String generateId() {
@@ -103,7 +154,8 @@ class DepartmentProvider with ChangeNotifier {
       await loadDepartments(); // Reload to get updated list
 
       // Log activity (no Firebase analytics, just print)
-      print('Activity logged: add_department (Department: ${department.id})');
+      debugPrint(
+          'Activity logged: add_department (Department: ${department.id})');
     } catch (e) {
       _setError('Failed to add department: $e');
     }
@@ -116,7 +168,7 @@ class DepartmentProvider with ChangeNotifier {
       await loadDepartments(); // Reload to get updated list
 
       // Log activity (no Firebase analytics, just print)
-      print(
+      debugPrint(
           'Activity logged: update_department (Department: ${department.id})');
     } catch (e) {
       _setError('Failed to update department: $e');
@@ -130,7 +182,7 @@ class DepartmentProvider with ChangeNotifier {
       await loadDepartments(); // Reload to get updated list
 
       // Log activity (no Firebase analytics, just print)
-      print('Activity logged: delete_department (Department: $id)');
+      debugPrint('Activity logged: delete_department (Department: $id)');
     } catch (e) {
       _setError('Failed to delete department: $e');
     }
@@ -143,7 +195,7 @@ class DepartmentProvider with ChangeNotifier {
       await loadDepartments(); // Reload to get updated list
 
       // Log activity (no Firebase analytics, just print)
-      print(
+      debugPrint(
           'Activity logged: import_departments (${departments.length} departments)');
     } catch (e) {
       _setError('Failed to import departments: $e');
@@ -157,7 +209,7 @@ class DepartmentProvider with ChangeNotifier {
 
     // Log search activity (no Firebase analytics, just print)
     if (query.isNotEmpty) {
-      print('Activity logged: search_departments (Query: $query)');
+      debugPrint('Activity logged: search_departments (Query: $query)');
     }
   }
 
@@ -168,7 +220,7 @@ class DepartmentProvider with ChangeNotifier {
 
     // Log filter activity (no Firebase analytics, just print)
     if (category != null) {
-      print('Activity logged: filter_by_category (Category: $category)');
+      debugPrint('Activity logged: filter_by_category (Category: $category)');
     }
   }
 
@@ -179,7 +231,7 @@ class DepartmentProvider with ChangeNotifier {
     _applyFilters();
 
     // Log clear filters activity (no Firebase analytics, just print)
-    print('Activity logged: clear_filters');
+    debugPrint('Activity logged: clear_filters');
   }
 
   // Toggle favorite
@@ -195,31 +247,64 @@ class DepartmentProvider with ChangeNotifier {
     notifyListeners();
 
     // Log favorite activity (no Firebase analytics, just print)
-    print(
+    debugPrint(
         'Activity logged: ${wasFavorite ? 'remove_favorite' : 'add_favorite'} (Department: $departmentId)');
+  }
+
+  List<Department> getDepartmentsMatchingQuery(
+    String query, {
+    DepartmentCategory? category,
+    List<Department>? sourceDepartments,
+  }) {
+    final departments = sourceDepartments ?? _departments;
+    final normalizedQuery = query.trim().toLowerCase();
+    final queryTokens = _tokenizeQuery(query);
+
+    return departments.where((dept) {
+      if (category != null && dept.category != category) {
+        return false;
+      }
+
+      if (normalizedQuery.isEmpty) {
+        return true;
+      }
+
+      return _matchesDepartmentQuery(
+        dept,
+        normalizedQuery: normalizedQuery,
+        queryTokens: queryTokens,
+      );
+    }).toList();
+  }
+
+  TaskFinderSearchResponse findDepartmentsForTask(
+    String query, {
+    int limit = 6,
+  }) {
+    return _departmentService.findDepartmentsForTask(
+      _departments,
+      query,
+      limit: limit,
+    );
+  }
+
+  Future<TaskFinderResult?> refineTaskSearchWithAi({
+    required String query,
+    required List<TaskDepartmentMatch> matches,
+  }) {
+    return _departmentService.refineTaskSearchWithAi(
+      query: query,
+      matches: matches,
+    );
   }
 
   // Apply current filters
   void _applyFilters() {
-    _filteredDepartments = _departments.where((dept) {
-      // Category filter
-      if (_selectedCategory != null && dept.category != _selectedCategory) {
-        return false;
-      }
-
-      // Search filter
-      if (_searchQuery.isNotEmpty) {
-        final query = _searchQuery.toLowerCase();
-        return dept.name.toLowerCase().contains(query) ||
-            dept.shortName.toLowerCase().contains(query) ||
-            dept.description.toLowerCase().contains(query) ||
-            dept.keywords
-                .any((keyword) => keyword.toLowerCase().contains(query)) ||
-            dept.tags.any((tag) => tag.toLowerCase().contains(query));
-      }
-
-      return true;
-    }).toList();
+    _filteredDepartments = getDepartmentsMatchingQuery(
+      _searchQuery,
+      category: _selectedCategory,
+      sourceDepartments: _departments,
+    );
 
     notifyListeners();
   }
@@ -238,5 +323,44 @@ class DepartmentProvider with ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  List<String> _tokenizeQuery(String input) {
+    return input
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((token) => token.isNotEmpty)
+        .toList();
+  }
+
+  bool _matchesDepartmentQuery(
+    Department department, {
+    required String normalizedQuery,
+    required List<String> queryTokens,
+  }) {
+    final searchableValues = [
+      department.name,
+      department.shortName,
+      department.description,
+      department.category.displayName,
+      ...department.services,
+      ...department.keywords,
+      ...department.tags,
+    ]
+        .map((value) => value.trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .toList();
+
+    if (searchableValues.any((value) => value.contains(normalizedQuery))) {
+      return true;
+    }
+
+    if (queryTokens.isEmpty) {
+      return false;
+    }
+
+    return queryTokens.every(
+      (token) => searchableValues.any((value) => value.contains(token)),
+    );
   }
 }

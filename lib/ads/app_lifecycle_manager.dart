@@ -1,15 +1,15 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'ad_manager.dart';
 import '../services/consent_service.dart';
+import '../utils/app_logger.dart';
 
 class AppLifecycleManager with WidgetsBindingObserver {
   final AdManager _adManager = AdManager();
   static final AppLifecycleManager _instance = AppLifecycleManager._internal();
   factory AppLifecycleManager() => _instance;
   AppLifecycleManager._internal();
-  
+
   DateTime? _lastPausedTime;
   bool _isFirstLaunch = true;
 
@@ -24,13 +24,13 @@ class AppLifecycleManager with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     // Skip ad operations on web platform
     if (kIsWeb) return;
-    
+
     // Only show ads if user has consented
     if (!ConsentService.instance.shouldShowAds) return;
-    
+
     switch (state) {
       case AppLifecycleState.resumed:
         // Don't show app open ad on first launch (handled by OpenAdScreen)
@@ -38,18 +38,20 @@ class AppLifecycleManager with WidgetsBindingObserver {
           _isFirstLaunch = false;
           break;
         }
-        
+
         // Only show app open ad if app was actually in background for a meaningful time
         if (_lastPausedTime != null) {
           final timeInBackground = DateTime.now().difference(_lastPausedTime!);
-          if (timeInBackground.inSeconds > 10) { // Increased from 5 to 10 seconds
+          if (timeInBackground.inSeconds > 10) {
+            // Increased from 5 to 10 seconds
             // Add a small delay to ensure any previous ad operations have completed
             Future.delayed(const Duration(milliseconds: 500), () {
               _adManager.showAppOpenAd();
             });
           } else {
             if (kDebugMode) {
-              print('App was only backgrounded briefly (${timeInBackground.inSeconds}s), skipping app open ad');
+              logVerbose(
+                  'App was only backgrounded briefly (${timeInBackground.inSeconds}s), skipping app open ad');
             }
           }
         }
@@ -64,9 +66,9 @@ class AppLifecycleManager with WidgetsBindingObserver {
       default:
         break;
     }
-    
+
     if (kDebugMode) {
-      print('App lifecycle state changed to: $state');
+      logVerbose('App lifecycle state changed to: $state');
     }
   }
 }

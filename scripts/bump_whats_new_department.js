@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * One-shot updater for the `departments` collection that always bumps
- * `lastUpdated` to server time so the record appears first in "What's New".
+ * One-shot updater for Firestore records used by "What's New" and
+ * "Recently updated". It bumps timestamp fields so the record appears first.
  *
  * Usage examples:
  *   # Bump only by document ID
@@ -14,6 +14,7 @@
  *   FIREBASE_PROJECT_ID=u-s-departments-and-age-gnkn5k \
  *   GOOGLE_APPLICATION_CREDENTIALS=/abs/path/key.json \
  *   node scripts/bump_whats_new_department.js \
+ *     --collection agencies \
  *     --name "The White House" \
  *     --set contactInfo.website=https://www.whitehouse.gov \
  *     --set description="Updated description text"
@@ -23,16 +24,21 @@ const admin = require('firebase-admin');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'u-s-departments-and-age-gnkn5k';
-const COLLECTION = 'departments';
+const VALID_COLLECTIONS = new Set(['departments', 'agencies']);
+const NAME_FIELDS_BY_COLLECTION = {
+  departments: ['name'],
+  agencies: ['nume', 'name'],
+};
 
 function usage(exitCode = 0) {
   console.log(`
 Usage:
-  node scripts/bump_whats_new_department.js [--id <docId> | --name <exactName>] [--set path=value]... [--dry-run]
+  node scripts/bump_whats_new_department.js [--collection <departments|agencies>] [--id <docId> | --name <exactName>] [--set path=value]... [--dry-run]
 
 Options:
-  --id <docId>         Target document ID in departments collection.
-  --name <exactName>   Target by exact 'name' field. Must match exactly one doc.
+  --collection <name>  Optional. Force collection: departments or agencies.
+  --id <docId>         Target document ID.
+  --name <exactName>   Target by exact name.
   --set path=value     Field updates to apply (repeatable). Example: contactInfo.phone=+1-202-456-1111
   --dry-run            Print planned update without writing.
   --help               Show this help.
@@ -46,6 +52,7 @@ Environment:
 
 function parseArgs(argv) {
   const result = {
+    collection: null,
     id: null,
     name: null,
     sets: [],
@@ -55,6 +62,10 @@ function parseArgs(argv) {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+    if (arg === '--collection') {
+      result.collection = argv[++i] || null;
+      continue;
+    }
     if (arg === '--id') {
       result.id = argv[++i] || null;
       continue;
@@ -94,8 +105,8 @@ function parseSet(raw) {
   if (!path) {
     throw new Error(`Invalid --set "${raw}". Empty field path`);
   }
-  if (path === 'lastUpdated') {
-    throw new Error('Do not set lastUpdated manually; it is set automatically');
+  if (path === 'lastUpdated' || path === 'updatedAt') {
+    throw new Error('Do not set timestamp fields manually; they are set automatically');
   }
 
   return { path, value: coerceValue(valueRaw) };
@@ -116,8 +127,39 @@ function initAdmin() {
   return getFirestore();
 }
 
-async function resolveTargetDoc(db, id, name) {
-  const ref = db.collection(COLLECTION);
+async function detectCollection(db, forcedCollection) {
+  if (forcedCollection) {
+    if (!VALID_COLLECTIONS.has(forcedCollection)) {
+      throw new Error(
+        `Invalid --collection "${forcedCollection}". Valid values: departments, agencies`,
+      );
+    }
+    return forcedCollection;
+  }
+
+  const [departmentsSnap, agenciesSnap] = await Promise.all([
+    db.collection('departments').limit(1).get(),
+    db.collection('agencies').limit(1).get(),
+  ]);
+
+  const hasDepartments = !departmentsSnap.empty;
+  const hasAgencies = !agenciesSnap.empty;
+
+  if (hasDepartments && !hasAgencies) return 'departments';
+  if (hasAgencies && !hasDepartments) return 'agencies';
+  if (hasDepartments && hasAgencies) {
+    throw new Error(
+      'Both collections contain data. Use --collection departments|agencies explicitly.',
+    );
+  }
+
+  throw new Error(
+    'No data found in either `departments` or `agencies`. Use --collection if needed.',
+  );
+}
+
+async function resolveTargetDoc(db, collection, id, name) {
+  const ref = db.collection(collection);
 
   if (id && name) {
     throw new Error('Use either --id or --name, not both');
@@ -131,18 +173,64 @@ async function resolveTargetDoc(db, id, name) {
     if (!doc.exists) {
       throw new Error(`Document not found by id: ${id}`);
     }
-    return doc;
+    return { doc, matchedField: null };
   }
 
-  const byName = await ref.where('name', '==', name).get();
-  if (byName.empty) {
-    throw new Error(`No document found with name="${name}"`);
+  const nameFields = NAME_FIELDS_BY_COLLECTION[collection] || ['name'];
+  const matches = [];
+  for (const field of nameFields) {
+    const snap = await ref.where(field, '==', name).get();
+    for (const doc of snap.docs) {
+      matches.push({ doc, field });
+    }
   }
-  if (byName.docs.length > 1) {
-    const ids = byName.docs.map((d) => d.id).join(', ');
+
+  const deduped = [];
+  const seen = new Set();
+  for (const item of matches) {
+    if (!seen.has(item.doc.id)) {
+      seen.add(item.doc.id);
+      deduped.push(item);
+    }
+  }
+
+  if (deduped.length === 0) {
+    throw new Error(
+      `No document found with name="${name}" in ${collection} (fields: ${nameFields.join(', ')})`,
+    );
+  }
+  if (deduped.length > 1) {
+    const ids = deduped.map((x) => x.doc.id).join(', ');
     throw new Error(`Name matched multiple documents. Use --id. Matches: ${ids}`);
   }
-  return byName.docs[0];
+
+  return { doc: deduped[0].doc, matchedField: deduped[0].field };
+}
+
+function buildTimestampPayload(collection) {
+  if (collection === 'departments') {
+    return { lastUpdated: FieldValue.serverTimestamp() };
+  }
+
+  if (collection === 'agencies') {
+    return {
+      lastUpdated: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+  }
+
+  return { lastUpdated: FieldValue.serverTimestamp() };
+}
+
+function getCurrentTimestampPreview(data) {
+  if (!data || typeof data !== 'object') return null;
+  return (
+    data.lastUpdated ||
+    data.updatedAt ||
+    data.createdAt ||
+    data.dataModificarii ||
+    null
+  );
 }
 
 async function main() {
@@ -150,28 +238,35 @@ async function main() {
   if (args.help) usage(0);
 
   const db = initAdmin();
-  const target = await resolveTargetDoc(db, args.id, args.name);
+  const collection = await detectCollection(db, args.collection);
+  const targetResult = await resolveTargetDoc(db, collection, args.id, args.name);
+  const target = targetResult.doc;
   const setEntries = args.sets.map(parseSet);
 
   const updatePayload = {};
   for (const item of setEntries) {
     updatePayload[item.path] = item.value;
   }
-  updatePayload.lastUpdated = FieldValue.serverTimestamp();
+  Object.assign(updatePayload, buildTimestampPayload(collection));
 
   const current = target.data() || {};
-  const currentName = current.name || '(no name)';
-  const currentLastUpdated = current.lastUpdated || null;
+  const currentName = current.name || current.nume || '(no name)';
+  const currentTs = getCurrentTimestampPreview(current);
 
   console.log(`${args.dryRun ? '[DRY RUN]' : '[APPLY]'} Project: ${PROJECT_ID}`);
   console.log(`Target: ${target.id} (${currentName})`);
-  console.log(`Collection: ${COLLECTION}`);
-  console.log(`Current lastUpdated: ${currentLastUpdated ? currentLastUpdated.toString() : 'null'}`);
+  console.log(`Collection: ${collection}`);
+  if (targetResult.matchedField) {
+    console.log(`Matched by field: ${targetResult.matchedField}`);
+  }
+  console.log(`Current timestamp: ${currentTs ? currentTs.toString() : 'null'}`);
   console.log('Planned fields:');
   for (const item of setEntries) {
     console.log(`- ${item.path} = ${JSON.stringify(item.value)}`);
   }
-  console.log('- lastUpdated = <serverTimestamp>');
+  for (const key of Object.keys(buildTimestampPayload(collection))) {
+    console.log(`- ${key} = <serverTimestamp>`);
+  }
 
   if (args.dryRun) {
     console.log('No changes written.');

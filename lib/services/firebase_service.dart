@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../repositories/firebase_department_repository.dart';
 import '../utils/data_migration.dart';
+import '../utils/app_logger.dart';
 
 /// Comprehensive Firebase service that manages all Firebase operations
 /// including authentication, Firestore data, and service initialization
@@ -45,11 +46,11 @@ class FirebaseService {
       _isInitialized = true;
       _connectionError = null;
 
-      print('Firebase service initialized successfully');
+      logVerbose('Firebase service initialized successfully');
       return true;
     } catch (e) {
       _connectionError = e.toString();
-      print('Firebase service initialization failed: $e');
+      logError('Firebase service initialization failed: $e');
       return false;
     }
   }
@@ -59,7 +60,8 @@ class FirebaseService {
     try {
       // Test Firestore connectivity
       await _firestore.enableNetwork();
-      await _firestore.collection('_test').limit(1).get();
+      // Use a collection that public rules already allow for read checks.
+      await _firestore.collection('departments').limit(1).get();
 
       // Test Auth connectivity
       await _auth.authStateChanges().first.timeout(
@@ -67,7 +69,7 @@ class FirebaseService {
             onTimeout: () => null,
           );
 
-      print('Firebase connectivity test passed');
+      logVerbose('Firebase connectivity test passed');
     } catch (e) {
       throw Exception('Firebase connectivity test failed: $e');
     }
@@ -89,9 +91,9 @@ class FirebaseService {
 
     try {
       await _migrationUtility.initializeFirebaseData();
-      print('Firebase data initialization completed');
+      logVerbose('Firebase data initialization completed');
     } catch (e) {
-      print('Firebase data initialization failed: $e');
+      logVerbose('Firebase data initialization failed: $e');
       // Don't throw - let app continue with empty data
     }
   }
@@ -243,7 +245,7 @@ class FirebaseService {
       final doc = await _firestore.collection('users').doc(userId).get();
       return doc.data();
     } catch (e) {
-      print('Error getting user profile: $e');
+      logVerbose('Error getting user profile: $e');
       return null;
     }
   }
@@ -310,7 +312,7 @@ class FirebaseService {
 
       return snapshot.docs.map((doc) => doc.id).toList();
     } catch (e) {
-      print('Error getting favorite IDs: $e');
+      logVerbose('Error getting favorite IDs: $e');
       return [];
     }
   }
@@ -334,7 +336,7 @@ class FirebaseService {
 
       return doc.exists;
     } catch (e) {
-      print('Error checking favorite status: $e');
+      logVerbose('Error checking favorite status: $e');
       return false;
     }
   }
@@ -362,7 +364,7 @@ class FirebaseService {
         'metadata': metadata ?? {},
       });
     } catch (e) {
-      print('Error tracking interaction: $e');
+      logVerbose('Error tracking interaction: $e');
       // Don't throw for analytics failures
     }
   }
@@ -390,7 +392,7 @@ class FirebaseService {
         'metadata': metadata ?? {},
       });
     } catch (e) {
-      print('Error saving chat history: $e');
+      logVerbose('Error saving chat history: $e');
       // Don't throw for chat history failures
     }
   }

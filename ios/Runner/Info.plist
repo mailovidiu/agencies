@@ -45,11 +45,17 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-6899384815833400~9905180144</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>This identifier will be used to deliver personalized ads to you.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app uses your location to find nearby government agencies and departments.</string>
+	<string>Your location is used to show nearby government agencies and departments on the map while you use the app.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Your location is used to show nearby government agencies and departments on the map while you use the app.</string>
 </dict>
 </plist>

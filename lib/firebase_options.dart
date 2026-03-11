@@ -25,9 +25,15 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        return macos;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for macos - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.windows:
-        return windows;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for windows - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -41,8 +47,8 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBPJoBqMmy2kmSL1lqp5nnee_nACOpr8h4',
-    appId: '1:795440992614:web:2c37255ecb8d0c174b78a7',
+    apiKey: 'AIzaSyBV4rLBTCtFHeWaqdifk90pWHH0tzZRVtg',
+    appId: '1:795440992614:web:118e481d9ecfb2994b78a7',
     messagingSenderId: '795440992614',
     projectId: 'u-s-departments-and-age-gnkn5k',
     authDomain: 'u-s-departments-and-age-gnkn5k.firebaseapp.com',
@@ -64,24 +70,5 @@ class DefaultFirebaseOptions {
     projectId: 'u-s-departments-and-age-gnkn5k',
     storageBucket: 'u-s-departments-and-age-gnkn5k.appspot.com',
     iosBundleId: 'com.trendmobileapp.usgovdepandagen',
-  );
-
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDGKGWI7xWd9TXNGCMfGI_eDZVV6RsGfKg',
-    authDomain: 'govt-departments-agencies.firebaseapp.com',
-    projectId: 'govt-departments-agencies',
-    storageBucket: 'govt-departments-agencies.firebasestorage.app',
-    messagingSenderId: '123456789012',
-    appId: '1:123456789012:macos:abcdef123456',
-    iosBundleId: 'com.example.govtDepartmentsAndAgencies',
-  );
-
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDGKGWI7xWd9TXNGCMfGI_eDZVV6RsGfKg',
-    authDomain: 'govt-departments-agencies.firebaseapp.com',
-    projectId: 'govt-departments-agencies',
-    storageBucket: 'govt-departments-agencies.firebasestorage.app',
-    messagingSenderId: '123456789012',
-    appId: '1:123456789012:windows:abcdef123456',
   );
 }
