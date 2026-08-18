@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class AdHelper {
-  static bool get isTestMode => const bool.fromEnvironment('dart.vm.product') == false;
+  static bool get isTestMode =>
+      const bool.fromEnvironment('dart.vm.product') == false;
 
   // Application IDs
   static String get appId {
@@ -20,7 +21,7 @@ class AdHelper {
     if (isTestMode) {
       return 'ca-app-pub-3940256099942544/9257395921'; // Test ID
     }
-    
+
     if (Platform.isAndroid) {
       return 'ca-app-pub-6899384815833400/6918600557';
     } else if (Platform.isIOS) {
@@ -34,43 +35,11 @@ class AdHelper {
     if (isTestMode) {
       return 'ca-app-pub-3940256099942544/1033173712'; // Test ID
     }
-    
+
     if (Platform.isAndroid) {
       return 'ca-app-pub-6899384815833400/6253769034';
     } else if (Platform.isIOS) {
       return 'ca-app-pub-6899384815833400/1723437799';
-    }
-    throw UnsupportedError('Unsupported platform');
-  }
-
-  // Native Ad Unit IDs  
-  static String get nativeAdUnitId {
-    if (isTestMode) {
-      return 'ca-app-pub-3940256099942544/2247696110'; // Test ID
-    }
-    
-    if (Platform.isAndroid) {
-      return 'ca-app-pub-6899384815833400/6970571441';
-    } else if (Platform.isIOS) {
-      return 'ca-app-pub-6899384815833400/8364927056';
-    }
-    throw UnsupportedError('Unsupported platform');
-  }
-
-  // Collapsible Banner Ad Unit IDs
-  static String get collapsibleBannerAdUnitId {
-    if (isTestMode) {
-      if (Platform.isAndroid) {
-        return 'ca-app-pub-3940256099942544/2014213617';
-      } else if (Platform.isIOS) {
-        return 'ca-app-pub-3940256099942544/8388050270';
-      }
-    }
-
-    if (Platform.isAndroid) {
-      return 'ca-app-pub-6899384815833400/7946272035';
-    } else if (Platform.isIOS) {
-      return 'ca-app-pub-6899384815833400/1895869008';
     }
     throw UnsupportedError('Unsupported platform');
   }
@@ -80,24 +49,25 @@ class AdHelper {
     if (kDebugMode) {
       print('Checking platform: kIsWeb = $kIsWeb');
     }
-    
+
     // Skip AdMob initialization on web platform
     if (kIsWeb) {
       if (kDebugMode) {
-        print('AdMob is not supported on web platform, skipping initialization');
+        print(
+            'AdMob is not supported on web platform, skipping initialization');
       }
       return;
     }
-    
+
     if (kDebugMode) {
       print('Initializing AdMob for mobile platform');
     }
-    
+
     await MobileAds.instance.initialize();
   }
 
   // Request configuration for better ad performance
   static RequestConfiguration get requestConfiguration => RequestConfiguration(
-    testDeviceIds: isTestMode ? ['test-device-id'] : null,
-  );
+        testDeviceIds: isTestMode ? ['test-device-id'] : null,
+      );
 }

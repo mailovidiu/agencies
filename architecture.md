@@ -28,7 +28,7 @@ Note: For small apps the repository and service can be merged, but keep abstract
   - Reusable components (cards, lists, dialogs). Widgets should accept data via constructor parameters; avoid pulling data directly.
 
 - lib/ads/
-  - Ad helper utilities and wrappers for AdMob flow (native, interstitial, app-open). Provide platform-aware fallbacks for web.
+  - Ad helper utilities and wrappers for AdMob flow (detail banner, interstitial, app-open). Provide platform-aware fallbacks for web.
 
 - lib/services/ (recommended)
   - Low-level network or platform APIs (HTTP clients, Firebase wrappers). Services should be easily mockable.
@@ -77,6 +77,7 @@ Benefits: easier to mock repositories/services in unit tests and swap remote/loc
 - Keep ad logic separate from app business logic.
 - Provide a clear interface for showing/hiding ads and for lifecycle events (app open, resume).
 - Provide fallbacks for web builds (AdMob is mobile-first) and respect ad policy.
+- Do not place Google ads inside DepartmentCard-style feeds, search results, category lists, or any card UI that can be mistaken for organic government content without a separate policy review.
 
 ## Backend and third-party integration notes
 

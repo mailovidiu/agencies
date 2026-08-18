@@ -1,0 +1,4 @@
+{
+  "version": "0.2.0",
+  "configurations": [{"name": "Flutter (GMA Next-Gen)", "request": "launch", "type": "dart", "toolArgs": ["--dart-define=USE_NEXT_GEN_SDK=true"]}]
+}

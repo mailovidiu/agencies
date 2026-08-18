@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'ad_helper.dart';
+import 'ad_policy_config.dart';
 import '../services/consent_service.dart';
 import '../utils/app_logger.dart';
 
@@ -21,8 +22,12 @@ class AdManager {
   bool _isLoadingInterstitial = false;
   Timer? _interstitialRetryTimer;
 
-  static const int _minInteractionsBetweenInterstitials = 5;
+  static const int _minInteractionsBetweenInterstitials = 3;
   static const Duration _interstitialRetryDelay = Duration(seconds: 30);
+
+  bool _isSurfaceEnabled(AdSurface surface) {
+    return AdPolicyConfig.current.isEnabled(surface);
+  }
 
   // Initialize ads based on consent
   Future<void> initialize() async {
@@ -71,17 +76,29 @@ class AdManager {
 
     await initialize();
 
-    if (_appOpenAd == null) {
+    if (!_isSurfaceEnabled(AdSurface.appOpen)) {
+      _appOpenAd?.dispose();
+      _appOpenAd = null;
+      _appOpenAdLoadTime = null;
+    } else if (_appOpenAd == null) {
       await loadAppOpenAd();
     }
-    if (_interstitialAd == null && !_isLoadingInterstitial) {
+    if (!_isSurfaceEnabled(AdSurface.interstitial)) {
+      _interstitialAd?.dispose();
+      _interstitialAd = null;
+      _interactionsSinceLastInterstitial = 0;
+    } else if (_interstitialAd == null && !_isLoadingInterstitial) {
       await loadInterstitialAd();
     }
   }
 
   // App Open Ad Management
   Future<void> loadAppOpenAd() async {
-    if (!_isInitialized || !ConsentService.instance.shouldShowAds) return;
+    if (!_isInitialized ||
+        !ConsentService.instance.shouldShowAds ||
+        !_isSurfaceEnabled(AdSurface.appOpen)) {
+      return;
+    }
     try {
       await AppOpenAd.load(
         adUnitId: AdHelper.appOpenAdUnitId,
@@ -118,6 +135,7 @@ class AdManager {
   Future<void> showAppOpenAd() async {
     if (!_isInitialized ||
         !ConsentService.instance.shouldShowAds ||
+        !_isSurfaceEnabled(AdSurface.appOpen) ||
         _isShowingAppOpenAd ||
         !_isAppOpenAdAvailable()) {
       return;
@@ -183,6 +201,7 @@ class AdManager {
   Future<bool> showAppOpenAdWithCallback({VoidCallback? onCompleted}) async {
     if (!_isInitialized ||
         !ConsentService.instance.shouldShowAds ||
+        !_isSurfaceEnabled(AdSurface.appOpen) ||
         _isShowingAppOpenAd ||
         !_isAppOpenAdAvailable()) {
       onCompleted?.call();
@@ -252,7 +271,11 @@ class AdManager {
 
   // Interstitial Ad Management
   Future<void> loadInterstitialAd() async {
-    if (!_isInitialized || !ConsentService.instance.shouldShowAds) return;
+    if (!_isInitialized ||
+        !ConsentService.instance.shouldShowAds ||
+        !_isSurfaceEnabled(AdSurface.interstitial)) {
+      return;
+    }
     if (_interstitialAd != null || _isLoadingInterstitial) return;
 
     _isLoadingInterstitial = true;
@@ -291,7 +314,8 @@ class AdManager {
   void _scheduleInterstitialRetry() {
     if (_interstitialRetryTimer != null ||
         !_isInitialized ||
-        !ConsentService.instance.shouldShowAds) {
+        !ConsentService.instance.shouldShowAds ||
+        !_isSurfaceEnabled(AdSurface.interstitial)) {
       return;
     }
 
@@ -304,6 +328,7 @@ class AdManager {
   bool canShowInterstitialAd() {
     if (!_isInitialized ||
         !ConsentService.instance.shouldShowAds ||
+        !_isSurfaceEnabled(AdSurface.interstitial) ||
         _interstitialAd == null) {
       return false;
     }
@@ -320,6 +345,10 @@ class AdManager {
   }
 
   Future<void> showInterstitialAd() async {
+    if (!_isSurfaceEnabled(AdSurface.interstitial)) {
+      return;
+    }
+
     _interactionsSinceLastInterstitial++;
     if (kDebugMode) {
       logVerbose(

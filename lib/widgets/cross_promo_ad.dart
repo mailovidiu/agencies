@@ -121,13 +121,13 @@ class _CrossPromoAdState extends State<CrossPromoAd> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFBBC04),
+                        color: colorScheme.secondaryContainer,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'Ad',
+                        'Featured app',
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: Colors.black,
+                          color: colorScheme.onSecondaryContainer,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

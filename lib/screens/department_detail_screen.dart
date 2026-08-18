@@ -7,7 +7,6 @@ import '../models/department.dart';
 import '../providers/department_provider.dart';
 import '../openai/openai_config.dart';
 import '../ads/ad_manager.dart';
-import '../ads/collapsible_banner_ad.dart';
 import '../widgets/ai_summary_card.dart';
 
 /// Detailed view screen for a government department or agency
@@ -67,10 +66,6 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
 
         return Scaffold(
           backgroundColor: colorScheme.surface,
-          bottomNavigationBar: const SafeArea(
-            top: false,
-            child: CollapsibleBannerAd(),
-          ),
           body: CustomScrollView(
             slivers: [
               // Compact Header
@@ -262,15 +257,6 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
                           const SizedBox(height: 32),
                         ],
 
-                        // Office Hours
-                        if (widget.department.officeHours != null) ...[
-                          _buildSectionHeader(context, 'Office Hours',
-                              Icons.access_time_outlined),
-                          const SizedBox(height: 16),
-                          _buildOfficeHoursSection(context),
-                          const SizedBox(height: 32),
-                        ],
-
                         // Location
                         if (widget.department.location != null) ...[
                           _buildSectionHeader(
@@ -282,6 +268,15 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
 
                         // Q&A Assistant
                         _buildQASection(context),
+
+                        // Office Hours
+                        if (widget.department.officeHours != null) ...[
+                          const SizedBox(height: 32),
+                          _buildSectionHeader(context, 'Office Hours',
+                              Icons.access_time_outlined),
+                          const SizedBox(height: 16),
+                          _buildOfficeHoursSection(context),
+                        ],
                       ],
                     ),
                   ),
@@ -901,6 +896,8 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
   Future<void> _generateSummary() async {
     if (_isLoadingSummary) return;
 
+    AdManager().showInterstitialAd();
+
     setState(() {
       _isLoadingSummary = true;
       _aiSummary = null;
@@ -943,6 +940,8 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
   Future<void> _askQuestion() async {
     final question = _questionController.text.trim();
     if (question.isEmpty || _isLoadingAnswer) return;
+
+    AdManager().showInterstitialAd();
 
     setState(() {
       _isLoadingAnswer = true;

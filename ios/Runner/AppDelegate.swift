@@ -1,7 +1,6 @@
 import Flutter
 import UIKit
 import GoogleMobileAds
-import google_mobile_ads
 import GoogleMaps
 
 @main
@@ -12,19 +11,9 @@ import GoogleMaps
   ) -> Bool {
     GMSServices.provideAPIKey("AIzaSyDV8vQ78L4OJFgaoylf6GHNpXBHjfllJBQ")
     GeneratedPluginRegistrant.register(with: self)
-    
-    // Register Native Ad Factories
-    let listTileFactory = NativeAdFactory(xibName: "NativeAdView")
-    FLTGoogleMobileAdsPlugin.registerNativeAdFactory(self, factoryId: "listTile", nativeAdFactory: listTileFactory)
-    
-    let smallFactory = NativeAdFactory(xibName: "SmallNativeAdView")
-    FLTGoogleMobileAdsPlugin.registerNativeAdFactory(self, factoryId: "small", nativeAdFactory: smallFactory)
-    
-    let mediumFactory = NativeAdFactory(xibName: "MediumNativeAdView")
-    FLTGoogleMobileAdsPlugin.registerNativeAdFactory(self, factoryId: "medium", nativeAdFactory: mediumFactory)
 
     // Initialize Google Mobile Ads SDK
-      MobileAds.shared.start(completionHandler: nil)
+    MobileAds.shared.start(completionHandler: nil)
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

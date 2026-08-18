@@ -505,146 +505,122 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
             ),
             const SizedBox(height: 20),
-            _buildTaskFinderHeroCard(context, provider),
+            _buildTaskFinderHeroCard(context),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTaskFinderHeroCard(
-    BuildContext context,
-    DepartmentProvider provider,
-  ) {
+  Widget _buildTaskFinderHeroCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final promptChips = provider.taskFinderPromptChips.take(6).toList();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF17324D),
-            Color(0xFF245C73),
-            Color(0xFF3F8C6B),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF17324D).withValues(alpha: 0.18),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () => _openTaskFinder(context),
+        child: Ink(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                colorScheme.primary,
+                colorScheme.primary.withValues(alpha: 0.85),
+                colorScheme.tertiary.withValues(alpha: 0.7),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.primary.withValues(alpha: 0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: Stack(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.assistant_navigation,
-                  color: Colors.white,
-                  size: 24,
+              Positioned(
+                top: -20,
+                right: -20,
+                child: Icon(
+                  Icons.support_agent,
+                  size: 130,
+                  color: Colors.white.withValues(alpha: 0.07),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
+              Positioned(
+                bottom: -14,
+                left: -14,
+                child: Icon(
+                  Icons.search,
+                  size: 90,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'I Need Help With...',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 20,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 8,
                           ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
-                      'Start with your real-life task and we will route you to the best office.',
+                      'Tap this card to describe your task on the next screen and get routed to the right office.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.86),
+                            color: Colors.white.withValues(alpha: 0.85),
                             height: 1.4,
                           ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Open task finder',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 18),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: promptChips
-                  .map(
-                    (chip) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _buildTaskFinderPromptChip(
-                        context,
-                        label: chip,
-                        onPressed: () =>
-                            _openTaskFinder(context, initialQuery: chip),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: () => _openTaskFinder(context),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: colorScheme.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            ),
-            icon: const Icon(Icons.arrow_forward),
-            label: const Text('Open Task Finder'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTaskFinderPromptChip(
-    BuildContext context, {
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onPressed,
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: colorScheme.surface.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.18),
-            ),
-          ),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: const Color(0xFF17324D),
-                  fontWeight: FontWeight.w700,
-                ),
           ),
         ),
       ),
