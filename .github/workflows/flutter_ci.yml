@@ -1,0 +1,66 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.41.0
+
+jobs:
+  flutter-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Show toolchain
+        run: flutter --version
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Verify formatting of changed Dart files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          base_sha="$BASE_SHA"
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]] || ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+            base_sha="$(git rev-parse HEAD^ 2>/dev/null || git hash-object -t tree /dev/null)"
+          fi
+          mapfile -t dart_files < <(
+            git diff --name-only --diff-filter=ACMRT "$base_sha" HEAD -- '*.dart' |
+              grep -E '^(lib|test|integration_test|tool)/' |
+              grep -Ev '(\.g\.dart$|\.freezed\.dart$|\.mocks\.dart$|firebase_options\.dart$|(^|/)generated/)' || true
+          )
+          if (( ${#dart_files[@]} == 0 )); then
+            echo "No changed Dart files require formatting checks."
+            exit 0
+          fi
+          dart format --output=none --set-exit-if-changed "${dart_files[@]}"
+      - name: Analyze Dart and Flutter code
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+      - name: Run test suite when present
+        shell: bash
+        run: |
+          if [[ -d test ]] && find test -type f -name '*_test.dart' -print -quit | grep -q .; then
+            flutter test
+          else
+            echo "No Flutter tests are currently configured."
+          fi
