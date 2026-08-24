@@ -30,8 +30,7 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _queryController = TextEditingController();
   final TextEditingController _clarifyController = TextEditingController();
-  final FirebaseAnalyticsService _analyticsService =
-      FirebaseAnalyticsService();
+  final FirebaseAnalyticsService _analyticsService = FirebaseAnalyticsService();
 
   List<TaskDepartmentMatch> _matches = const [];
   TaskFinderResult? _result;
@@ -535,8 +534,8 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
                             Icon(
                               Icons.arrow_forward_ios_rounded,
                               size: 16,
-                              color: colorScheme.onSurface
-                                  .withValues(alpha: 0.35),
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.35),
                             ),
                           ],
                         ),
@@ -1017,13 +1016,11 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
                           const SizedBox(height: 2),
                           Text(
                             department.category.displayName,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: colorScheme.onSurface
-                                      .withValues(alpha: 0.55),
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurface
+                                          .withValues(alpha: 0.55),
+                                    ),
                           ),
                         ],
                       ),
@@ -1174,7 +1171,8 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
 
     buttons.add(
       _buildCompactActionButton(
-        icon: isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        icon:
+            isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
         label: isFavorite ? 'Saved' : 'Save',
         onPressed: () {
           provider.toggleFavorite(department.id);
@@ -1216,8 +1214,7 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
       label: Text(label),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        foregroundColor:
-            isActive ? colorScheme.primary : colorScheme.onSurface,
+        foregroundColor: isActive ? colorScheme.primary : colorScheme.onSurface,
         side: BorderSide(
           color: isActive
               ? colorScheme.primary.withValues(alpha: 0.4)
@@ -1376,8 +1373,8 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
           Text(
             question,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSecondaryContainer
-                      .withValues(alpha: 0.85),
+                  color:
+                      colorScheme.onSecondaryContainer.withValues(alpha: 0.85),
                   height: 1.5,
                 ),
           ),
@@ -1811,8 +1808,7 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
                   itemCount: DepartmentCategory.values.length,
                   itemBuilder: (context, index) {
                     final category = DepartmentCategory.values[index];
-                    final gradientColors =
-                        CategoryUtils.getGradient(category);
+                    final gradientColors = CategoryUtils.getGradient(category);
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 24,
