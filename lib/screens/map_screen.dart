@@ -26,6 +26,7 @@ class _MapScreenState extends State<MapScreen> {
 
   // Default to Washington D.C.
   static const LatLng _defaultCenter = LatLng(38.8977, -77.0365);
+  static const double _nearbyRadiusMiles = 100;
 
   @override
   void initState() {
@@ -79,12 +80,11 @@ class _MapScreenState extends State<MapScreen> {
         _loadingLocation = false;
       });
 
-      _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(
-          LatLng(position.latitude, position.longitude),
-          12,
-        ),
-      );
+      if (mounted) {
+        _focusRelevantLocations(
+          context.read<DepartmentProvider>().allDepartments,
+        );
+      }
     } catch (e) {
       setState(() {
         _loadingLocation = false;
@@ -98,7 +98,9 @@ class _MapScreenState extends State<MapScreen> {
 
     for (final dept in departments) {
       final loc = dept.location;
-      if (loc == null || loc.latitude == null || loc.longitude == null) continue;
+      if (loc == null || loc.latitude == null || loc.longitude == null) {
+        continue;
+      }
 
       markers.add(
         Marker(
@@ -149,17 +151,21 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2) / 1609.34; // miles
+  double _calculateDistance(
+      double lat1, double lon1, double lat2, double lon2) {
+    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2) /
+        1609.34; // miles
   }
 
   List<Department> _sortByDistance(List<Department> departments) {
     if (_userPosition == null) return departments;
 
-    final withLocation = departments.where((d) =>
-        d.location != null &&
-        d.location!.latitude != null &&
-        d.location!.longitude != null).toList();
+    final withLocation = departments
+        .where((d) =>
+            d.location != null &&
+            d.location!.latitude != null &&
+            d.location!.longitude != null)
+        .toList();
 
     withLocation.sort((a, b) {
       final distA = _calculateDistance(
@@ -180,15 +186,70 @@ class _MapScreenState extends State<MapScreen> {
     return withLocation;
   }
 
+  int _nearbyCount(List<Department> departments) {
+    if (_userPosition == null) return 0;
+    return departments.where((department) {
+      final location = department.location;
+      if (location?.latitude == null || location?.longitude == null) {
+        return false;
+      }
+      return _calculateDistance(
+            _userPosition!.latitude,
+            _userPosition!.longitude,
+            location!.latitude!,
+            location.longitude!,
+          ) <=
+          _nearbyRadiusMiles;
+    }).length;
+  }
+
+  void _focusRelevantLocations(List<Department> departments) {
+    if (_mapController == null || _userPosition == null) return;
+
+    final sorted = _sortByDistance(departments);
+    if (sorted.isEmpty) {
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(
+          LatLng(_userPosition!.latitude, _userPosition!.longitude),
+          11,
+        ),
+      );
+      return;
+    }
+
+    final nearest = sorted.first;
+    final nearestDistance = _calculateDistance(
+      _userPosition!.latitude,
+      _userPosition!.longitude,
+      nearest.location!.latitude!,
+      nearest.location!.longitude!,
+    );
+
+    final target = nearestDistance <= _nearbyRadiusMiles
+        ? LatLng(_userPosition!.latitude, _userPosition!.longitude)
+        : LatLng(
+            nearest.location!.latitude!,
+            nearest.location!.longitude!,
+          );
+    _mapController!.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        target,
+        nearestDistance <= _nearbyRadiusMiles ? 11 : 6,
+      ),
+    );
+  }
+
   void _openDirections(Department department) async {
     final loc = department.location;
     if (loc == null) return;
 
     String url;
     if (loc.latitude != null && loc.longitude != null) {
-      url = 'https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}';
+      url =
+          'https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}';
     } else {
-      url = 'https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(loc.formattedAddress)}';
+      url =
+          'https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(loc.formattedAddress)}';
     }
 
     final uri = Uri.parse(url);
@@ -208,6 +269,15 @@ class _MapScreenState extends State<MapScreen> {
                   d.location!.latitude != null &&
                   d.location!.longitude != null)
               .toList();
+          final nearbyCount = _nearbyCount(departments);
+          final hasNearby = nearbyCount > 0;
+          final locationSummary = _loadingLocation
+              ? '${departments.length} mapped locations'
+              : _locationError != null
+                  ? '${departments.length} mapped locations'
+                  : hasNearby
+                      ? '$nearbyCount nearby • ${departments.length} total'
+                      : 'No agencies within 100 mi';
 
           return Stack(
             children: [
@@ -215,7 +285,8 @@ class _MapScreenState extends State<MapScreen> {
               GoogleMap(
                 initialCameraPosition: CameraPosition(
                   target: _userPosition != null
-                      ? LatLng(_userPosition!.latitude, _userPosition!.longitude)
+                      ? LatLng(
+                          _userPosition!.latitude, _userPosition!.longitude)
                       : _defaultCenter,
                   zoom: 11,
                 ),
@@ -226,6 +297,7 @@ class _MapScreenState extends State<MapScreen> {
                 mapToolbarEnabled: false,
                 onMapCreated: (controller) {
                   _mapController = controller;
+                  _focusRelevantLocations(departments);
                 },
                 onTap: (_) {
                   setState(() => _selectedDepartment = null);
@@ -274,7 +346,8 @@ class _MapScreenState extends State<MapScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
@@ -289,28 +362,36 @@ class _MapScreenState extends State<MapScreen> {
                                 children: [
                                   Icon(
                                     Icons.location_on,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    '${departments.length} agencies on map',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15,
+                                  Expanded(
+                                    child: Text(
+                                      locationSummary,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                   ),
-                                  const Spacer(),
+                                  const SizedBox(width: 8),
                                   if (_loadingLocation)
                                     const SizedBox(
                                       width: 16,
                                       height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     )
                                   else if (_locationError != null)
-                                    Icon(Icons.location_off, color: Colors.grey[400], size: 18)
+                                    Icon(Icons.location_off,
+                                        color: Colors.grey[400], size: 18)
                                   else
-                                    const Icon(Icons.my_location, color: Colors.green, size: 18),
+                                    const Icon(Icons.my_location,
+                                        color: Colors.green, size: 18),
                                 ],
                               ),
                             ),
@@ -325,7 +406,7 @@ class _MapScreenState extends State<MapScreen> {
               // My Location FAB
               Positioned(
                 right: 16,
-                bottom: _selectedDepartment != null ? 230 : 100,
+                bottom: _selectedDepartment != null ? 250 : 128,
                 child: Column(
                   children: [
                     FloatingActionButton.small(
@@ -335,7 +416,8 @@ class _MapScreenState extends State<MapScreen> {
                         if (_userPosition != null) {
                           _mapController?.animateCamera(
                             CameraUpdate.newLatLngZoom(
-                              LatLng(_userPosition!.latitude, _userPosition!.longitude),
+                              LatLng(_userPosition!.latitude,
+                                  _userPosition!.longitude),
                               13,
                             ),
                           );
@@ -345,7 +427,8 @@ class _MapScreenState extends State<MapScreen> {
                       },
                       child: Icon(
                         Icons.my_location,
-                        color: _userPosition != null ? Colors.blue : Colors.grey,
+                        color:
+                            _userPosition != null ? Colors.blue : Colors.grey,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -357,7 +440,8 @@ class _MapScreenState extends State<MapScreen> {
                           _fitAllMarkers(departments);
                         }
                       },
-                      child: const Icon(Icons.zoom_out_map, color: Colors.black87),
+                      child:
+                          const Icon(Icons.zoom_out_map, color: Colors.black87),
                     ),
                   ],
                 ),
@@ -368,7 +452,11 @@ class _MapScreenState extends State<MapScreen> {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: _buildBottomSheet(departments, provider),
+                child: _buildBottomSheet(
+                  departments,
+                  provider,
+                  hasNearby: hasNearby,
+                ),
               ),
 
               // Selected department card
@@ -376,7 +464,7 @@ class _MapScreenState extends State<MapScreen> {
                 Positioned(
                   left: 16,
                   right: 16,
-                  bottom: 100,
+                  bottom: 122,
                   child: _buildSelectedCard(_selectedDepartment!, provider),
                 ),
             ],
@@ -386,11 +474,16 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildBottomSheet(List<Department> departments, DepartmentProvider provider) {
+  Widget _buildBottomSheet(
+    List<Department> departments,
+    DepartmentProvider provider, {
+    required bool hasNearby,
+  }) {
     final sorted = _sortByDistance(departments);
+    final showClosestMessage = _userPosition != null && !hasNearby;
 
     return Container(
-      height: 90,
+      height: showClosestMessage ? 122 : 92,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -416,6 +509,26 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
           ),
+          if (showClosestMessage)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      'Showing the closest mapped agencies instead.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
@@ -439,21 +552,25 @@ class _MapScreenState extends State<MapScreen> {
                     setState(() => _selectedDepartment = dept);
                     _mapController?.animateCamera(
                       CameraUpdate.newLatLngZoom(
-                        LatLng(dept.location!.latitude!, dept.location!.longitude!),
+                        LatLng(dept.location!.latitude!,
+                            dept.location!.longitude!),
                         14,
                       ),
                     );
                   },
                   child: Container(
                     margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: _selectedDepartment?.id == dept.id
                           ? Theme.of(context).colorScheme.primaryContainer
                           : Colors.grey[100],
                       borderRadius: BorderRadius.circular(12),
                       border: _selectedDepartment?.id == dept.id
-                          ? Border.all(color: Theme.of(context).colorScheme.primary, width: 1.5)
+                          ? Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 1.5)
                           : null,
                     ),
                     child: Row(
@@ -491,7 +608,8 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildSelectedCard(Department department, DepartmentProvider provider) {
+  Widget _buildSelectedCard(
+      Department department, DepartmentProvider provider) {
     String? distanceText;
     if (_userPosition != null && department.location != null) {
       final dist = _calculateDistance(
@@ -520,7 +638,10 @@ class _MapScreenState extends State<MapScreen> {
                     gradient: LinearGradient(
                       colors: [
                         Theme.of(context).colorScheme.primary,
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                        Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.7),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(12),

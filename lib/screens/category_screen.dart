@@ -43,7 +43,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
     final categoryDepartments = provider.allDepartments
         .where((dept) => dept.category == widget.category)
         .toList();
-    
+
     setState(() {
       if (_searchController.text.isEmpty) {
         _filteredDepartments = categoryDepartments;
@@ -68,23 +68,26 @@ class _CategoryScreenState extends State<CategoryScreen> {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               widget.category.displayName,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
             ),
             Text(
               '${_filteredDepartments.length} departments',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
-              ),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onPrimary
+                        .withValues(alpha: 0.75),
+                  ),
             ),
           ],
         ),
@@ -138,8 +141,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
                         _getCategoryDescription(widget.category),
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
-                        ),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer
+                                  .withValues(alpha: 0.8),
+                            ),
                       ),
                       const SizedBox(height: 20),
                       // Search bar
@@ -158,7 +164,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Search in ${widget.category.displayName}...',
+                            hintText:
+                                'Search in ${widget.category.displayName}...',
                             prefixIcon: const Icon(Icons.search),
                             suffixIcon: _searchController.text.isNotEmpty
                                 ? IconButton(
@@ -194,8 +201,10 @@ class _CategoryScreenState extends State<CategoryScreen> {
                             child: DepartmentCard(
                               department: department,
                               isFavorite: provider.isFavorite(department.id),
-                              onFavoriteToggle: () => provider.toggleFavorite(department.id),
-                              onTap: () => _navigateToDetail(context, department, provider),
+                              onFavoriteToggle: () =>
+                                  provider.toggleFavorite(department.id),
+                              onTap: () => _navigateToDetail(
+                                  context, department, provider),
                             ),
                           );
                         },
@@ -216,13 +225,18 @@ class _CategoryScreenState extends State<CategoryScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              _searchController.text.isNotEmpty ? Icons.search_off : Icons.inbox_outlined,
+              _searchController.text.isNotEmpty
+                  ? Icons.search_off
+                  : Icons.inbox_outlined,
               size: 64,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
-              _searchController.text.isNotEmpty 
+              _searchController.text.isNotEmpty
                   ? 'No departments found'
                   : 'No departments available',
               style: Theme.of(context).textTheme.headlineSmall,
@@ -230,12 +244,12 @@ class _CategoryScreenState extends State<CategoryScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              _searchController.text.isNotEmpty 
+              _searchController.text.isNotEmpty
                   ? 'Try adjusting your search terms'
                   : 'Check back later for updates',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).textTheme.bodySmall?.color,
-              ),
+                    color: Theme.of(context).textTheme.bodySmall?.color,
+                  ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -244,7 +258,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
     );
   }
 
-  void _navigateToDetail(BuildContext context, Department department, DepartmentProvider provider) {
+  void _navigateToDetail(BuildContext context, Department department,
+      DepartmentProvider provider) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => DepartmentDetailScreen(

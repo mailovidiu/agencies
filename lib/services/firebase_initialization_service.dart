@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../firebase_options.dart';
 import 'firebase_service.dart';
-import 'firebase_admin_service.dart';
 import 'notification_service.dart';
 import '../utils/data_migration.dart';
 import '../repositories/firebase_department_repository.dart';
@@ -42,10 +41,7 @@ class FirebaseInitializationService {
         throw Exception('Firebase service failed to initialize');
       }
 
-      // Step 4: Initialize Firebase Admin Service
-      await FirebaseAdminService().initialize();
-
-      // Step 4.5: Initialize Notification Service (FCM)
+      // Step 4: Initialize Notification Service (FCM)
       try {
         await NotificationService().initialize();
       } catch (e) {
@@ -152,15 +148,12 @@ class FirebaseInitializationService {
       logVerbose(
           '🔐 Auth state: ${currentUser != null ? 'Signed in' : 'Anonymous'}');
 
-      // Test Firestore connectivity
+      // Test Firestore connectivity against a collection that normal users
+      // are allowed to read. Privileged admin collections must only be
+      // accessed after an authenticated admin opens the admin flow.
       final firestore = FirebaseFirestore.instance;
-      await firestore.collection('_health_check').limit(1).get();
+      await firestore.collection('departments').limit(1).get();
       logVerbose('📊 Firestore: Connected');
-
-      // Validate admin service
-      final adminService = FirebaseAdminService();
-      await adminService.getDashboardStats();
-      logVerbose('👨‍💼 Admin service: Ready');
 
       logVerbose('✅ Firebase setup validation completed');
     } catch (e) {

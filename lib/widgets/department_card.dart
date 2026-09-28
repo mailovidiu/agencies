@@ -7,6 +7,7 @@ class DepartmentCard extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback? onFavoriteToggle;
   final VoidCallback? onTap;
+  final bool compact;
 
   const DepartmentCard({
     super.key,
@@ -14,6 +15,7 @@ class DepartmentCard extends StatelessWidget {
     this.isFavorite = false,
     this.onFavoriteToggle,
     this.onTap,
+    this.compact = false,
   });
 
   @override
@@ -28,7 +30,7 @@ class DepartmentCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(compact ? 12 : 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -49,7 +51,7 @@ class DepartmentCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  
+
                   // Department name and short name
                   Expanded(
                     child: Column(
@@ -72,31 +74,35 @@ class DepartmentCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  
+
                   // Favorite button
                   IconButton(
                     onPressed: onFavoriteToggle,
                     icon: Icon(
                       isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.red : colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: isFavorite
+                          ? Colors.red
+                          : colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
-                    tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                    tooltip: isFavorite
+                        ? 'Remove from favorites'
+                        : 'Add to favorites',
                   ),
                 ],
               ),
-              
-              const SizedBox(height: 12),
-              
+
+              SizedBox(height: compact ? 8 : 12),
+
               // Description
               Text(
                 department.description,
                 style: textTheme.bodyMedium,
-                maxLines: 3,
+                maxLines: compact ? 2 : 3,
                 overflow: TextOverflow.ellipsis,
               ),
-              
-              const SizedBox(height: 12),
-              
+
+              SizedBox(height: compact ? 8 : 12),
+
               // Category badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -112,9 +118,9 @@ class DepartmentCard extends StatelessWidget {
                   ),
                 ),
               ),
-              
-              const SizedBox(height: 12),
-              
+
+              SizedBox(height: compact ? 8 : 12),
+
               // Contact info preview
               Row(
                 children: [
@@ -144,11 +150,11 @@ class DepartmentCard extends StatelessWidget {
                   ),
                 ],
               ),
-              
-              const SizedBox(height: 12),
-              
+
+              if (!compact) const SizedBox(height: 12),
+
               // Services preview
-              if (department.services.isNotEmpty)
+              if (!compact && department.services.isNotEmpty)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

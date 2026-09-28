@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../ads/ad_manager.dart';
-import '../services/consent_service.dart';
 import '../utils/app_logger.dart';
 import 'home_screen.dart';
 
@@ -19,16 +18,12 @@ class _OpenAdScreenState extends State<OpenAdScreen> {
   @override
   void initState() {
     super.initState();
-    _showOpenAdAndNavigate();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showOpenAdAndNavigate();
+    });
   }
 
   void _showOpenAdAndNavigate() async {
-    // Wait for consent service to be initialized
-    await ConsentService.instance.waitForInitialization();
-
-    // Wait a bit more for the screen to be built and ads to be loaded
-    await Future.delayed(const Duration(milliseconds: 1000));
-
     if (!mounted) return;
 
     if (kDebugMode) {
@@ -37,7 +32,7 @@ class _OpenAdScreenState extends State<OpenAdScreen> {
 
     // Show app open ad with callback
     try {
-      bool adAttempted = await _adManager.showAppOpenAdWithCallback(
+      await _adManager.showAppOpenAdWithCallback(
         onCompleted: () {
           if (mounted && !_navigated) {
             if (kDebugMode) {
@@ -47,16 +42,6 @@ class _OpenAdScreenState extends State<OpenAdScreen> {
           }
         },
       );
-
-      if (!adAttempted) {
-        // Ad was not shown (no consent, web platform, or not available)
-        if (kDebugMode) {
-          logVerbose('Open ad not shown, navigating directly to home');
-        }
-        if (!_navigated) {
-          _navigateToHome();
-        }
-      }
     } catch (e) {
       if (kDebugMode) {
         logVerbose('Failed to show open ad: $e');
@@ -81,7 +66,7 @@ class _OpenAdScreenState extends State<OpenAdScreen> {
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
-        transitionDuration: const Duration(milliseconds: 600),
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -90,7 +75,7 @@ class _OpenAdScreenState extends State<OpenAdScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: const SizedBox.shrink(),
+      body: const Center(child: CircularProgressIndicator()),
     );
   }
 }

@@ -49,9 +49,14 @@ class WhatsNewScreen extends StatelessWidget {
     );
   }
 
-  /// Sort departments by lastUpdated, most recent first
+  /// Only show genuinely recent changes so the feed does not imply stale
+  /// records are new.
   List<Department> _getRecentlyUpdated(List<Department> departments) {
-    final sorted = List<Department>.from(departments);
+    final cutoff = DateTime.now().subtract(const Duration(days: 90));
+    final sorted = departments.where((department) {
+      final date = department.lastUpdated ?? department.createdAt;
+      return date != null && date.isAfter(cutoff);
+    }).toList();
     sorted.sort((a, b) {
       final aDate = a.lastUpdated ?? a.createdAt ?? DateTime(2000);
       final bDate = b.lastUpdated ?? b.createdAt ?? DateTime(2000);
@@ -66,9 +71,7 @@ class WhatsNewScreen extends StatelessWidget {
     DepartmentProvider provider,
   ) {
     final updateDate = department.lastUpdated ?? department.createdAt;
-    final timeAgo = updateDate != null
-        ? _formatTimeAgo(updateDate)
-        : 'Unknown';
+    final timeAgo = updateDate != null ? _formatTimeAgo(updateDate) : 'Unknown';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -115,9 +118,8 @@ class WhatsNewScreen extends StatelessWidget {
                         Icon(
                           _getCategoryIcon(department.category),
                           size: 14,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onPrimaryContainer,
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -266,7 +268,7 @@ class WhatsNewScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'No Updates Yet',
+              'No Recent Updates',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -275,7 +277,7 @@ class WhatsNewScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'When departments are updated, they\'ll appear here so you stay in the loop.',
+              'No department updates were published in the last 90 days. Check back later.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,

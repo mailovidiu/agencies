@@ -36,11 +36,29 @@ target 'Runner' do
   end
 end
 
+# The Google Mobile Ads Flutter pod imports Google's private beta umbrella
+# header. Compiling only this plugin as a static library avoids Xcode treating
+# that include as part of a framework module, while Firebase keeps its normal
+# framework integration.
+pre_install do |installer|
+  installer.pod_targets.each do |pod|
+    if pod.name == 'google_mobile_ads'
+      def pod.build_type
+        Pod::BuildType.static_library
+      end
+    end
+  end
+end
+
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      # Google Mobile Ads exposes its beta preloading API through a private
+      # umbrella header. The Flutter plugin imports that API from its module,
+      # so Xcode must allow this include when compiling CocoaPods frameworks.
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
     end
   end
 end

@@ -15,6 +15,20 @@ import 'utils/app_logger.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  final departmentRepository = HybridDepartmentRepository();
+  final initializationFuture = _initializeApp(departmentRepository);
+
+  runApp(
+    MyApp(
+      departmentService: DepartmentService(departmentRepository),
+      initializationFuture: initializationFuture,
+    ),
+  );
+}
+
+Future<void> _initializeApp(
+  HybridDepartmentRepository departmentRepository,
+) async {
   // Initialize Firebase with comprehensive error handling
   final firebaseInit = FirebaseInitializationService();
   bool firebaseReady = false;
@@ -37,23 +51,19 @@ void main() async {
     logError('❌ App initialization error: $e');
   }
 
-  // Always use hybrid repository for maximum compatibility
-  final departmentRepository = HybridDepartmentRepository();
   await departmentRepository.initialize();
   logVerbose(
       '🗄️  Hybrid repository initialized - Status: ${departmentRepository.connectionStatus}');
-
-  runApp(MyApp(
-    departmentService: DepartmentService(departmentRepository),
-  ));
 }
 
 class MyApp extends StatefulWidget {
   final DepartmentService departmentService;
+  final Future<void> initializationFuture;
 
   const MyApp({
     super.key,
     required this.departmentService,
+    required this.initializationFuture,
   });
 
   @override
@@ -90,7 +100,9 @@ class _MyAppState extends State<MyApp> {
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: ThemeMode.system,
-        home: const SplashScreen(),
+        home: SplashScreen(
+          initializationFuture: widget.initializationFuture,
+        ),
       ),
     );
   }

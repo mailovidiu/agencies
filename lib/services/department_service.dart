@@ -240,7 +240,7 @@ class DepartmentService {
   Future<TaskFinderResult?> refineTaskSearchWithAi({
     required String query,
     required List<TaskDepartmentMatch> matches,
-    Duration timeout = const Duration(seconds: 5),
+    Duration timeout = const Duration(seconds: 12),
   }) async {
     if (query.trim().isEmpty || matches.isEmpty) {
       return null;

@@ -162,7 +162,10 @@ class FirebaseAnalyticsService {
     if (value == null) {
       return null;
     }
-    if (value is String || value is int || value is double || value is bool) {
+    if (value is bool) {
+      return value ? 1 : 0;
+    }
+    if (value is String || value is int || value is double) {
       return value;
     }
     if (value is num) {

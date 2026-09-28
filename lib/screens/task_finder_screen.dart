@@ -157,7 +157,7 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
         ),
       ),
       title: Text(
-        'I Need Help With...',
+        'Find the right agency',
         style: TextStyle(
           fontWeight: FontWeight.w800,
           fontSize: 20,
@@ -1471,7 +1471,7 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
       _result = localResponse.result;
       _statusMessage = localResponse.matches.isEmpty
           ? null
-          : 'AI is refining the best match. Local keyword results are shown now.';
+          : 'Instant keyword matches are ready while AI checks the best fit.';
       _statusIsWarning = false;
       _isAiRefining = localResponse.matches.isNotEmpty;
       _clarifyController.clear();
@@ -1565,7 +1565,8 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
       }
 
       setState(() {
-        _statusMessage = 'AI refinement unavailable, showing keyword matches.';
+        _statusMessage =
+            'AI is unavailable right now. These instant keyword matches are still ready to use.';
         _statusIsWarning = true;
         _isAiRefining = false;
       });
@@ -1575,7 +1576,8 @@ class _TaskFinderScreenState extends State<TaskFinderScreen>
       }
 
       setState(() {
-        _statusMessage = 'AI refinement unavailable, showing keyword matches.';
+        _statusMessage =
+            'AI is unavailable right now. These instant keyword matches are still ready to use.';
         _statusIsWarning = true;
         _isAiRefining = false;
       });

@@ -103,6 +103,15 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  void _clearSearch() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _searchController.clear();
+    context.read<DepartmentProvider>().clearFilters();
+    setState(() {
+      _showSearchResults = false;
+    });
+  }
+
   Future<void> _handleNotificationTap(String? departmentId) async {
     final normalizedDepartmentId = departmentId?.trim();
     if (!mounted ||
@@ -134,54 +143,62 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Consumer<DepartmentProvider>(
-        builder: (context, provider, child) {
-          if (provider.errorMessage != null) {
-            return _buildErrorState(context, provider);
-          }
+    return PopScope(
+      canPop: !_showSearchResults,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _showSearchResults) {
+          _clearSearch();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: Consumer<DepartmentProvider>(
+          builder: (context, provider, child) {
+            if (provider.errorMessage != null) {
+              return _buildErrorState(context, provider);
+            }
 
-          return Stack(
-            children: [
-              CustomScrollView(
-                controller: _scrollController,
-                slivers: [
-                  _buildModernAppBar(context),
-                  if (_showSearchResults) ...[
-                    _buildSearchResults(context, provider),
-                  ] else ...[
-                    _buildHeroSection(context, provider),
-                    _buildRecentlyUpdatedSection(context, provider),
-                    _buildQuickActionsSection(context),
-                    _buildPopularSection(context, provider),
-                    _buildCategoriesSection(context, provider),
-                    const SliverToBoxAdapter(child: CrossPromoAd()),
-                    const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            return Stack(
+              children: [
+                CustomScrollView(
+                  controller: _scrollController,
+                  slivers: [
+                    _buildModernAppBar(context),
+                    if (_showSearchResults) ...[
+                      _buildSearchResults(context, provider),
+                    ] else ...[
+                      _buildHeroSection(context, provider),
+                      _buildRecentlyUpdatedSection(context, provider),
+                      _buildQuickActionsSection(context),
+                      _buildPopularSection(context, provider),
+                      _buildCategoriesSection(context, provider),
+                      const SliverToBoxAdapter(child: CrossPromoAd()),
+                      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                    ],
                   ],
-                ],
-              ),
-              if (_showFab)
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: ScaleTransition(
-                    scale: _fabAnimationController,
-                    child: FloatingActionButton(
-                      onPressed: () {
-                        _scrollController.animateTo(
-                          0,
-                          duration: const Duration(milliseconds: 500),
-                          curve: Curves.easeOutCubic,
-                        );
-                      },
-                      child: const Icon(Icons.arrow_upward),
+                ),
+                if (_showFab)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: ScaleTransition(
+                      scale: _fabAnimationController,
+                      child: FloatingActionButton(
+                        onPressed: () {
+                          _scrollController.animateTo(
+                            0,
+                            duration: const Duration(milliseconds: 500),
+                            curve: Curves.easeOutCubic,
+                          );
+                        },
+                        child: const Icon(Icons.arrow_upward),
+                      ),
                     ),
                   ),
-                ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -192,7 +209,9 @@ class _HomeScreenState extends State<HomeScreen>
       floating: false,
       pinned: true,
       elevation: 0,
-      backgroundColor: Colors.transparent,
+      scrolledUnderElevation: 2,
+      surfaceTintColor: Colors.transparent,
+      backgroundColor: Theme.of(context).colorScheme.primary,
       flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -270,7 +289,7 @@ class _HomeScreenState extends State<HomeScreen>
                       textInputAction: TextInputAction.search,
                       onSubmitted: (_) => _performSearch(),
                       decoration: InputDecoration(
-                        hintText: 'Search departments and agencies...',
+                        hintText: 'Search agencies...',
                         hintStyle: TextStyle(
                           color: Colors.grey.shade400,
                           fontSize: 16,
@@ -635,12 +654,19 @@ class _HomeScreenState extends State<HomeScreen>
       final bDate = b.lastUpdated ?? b.createdAt ?? DateTime(2000);
       return bDate.compareTo(aDate);
     });
-    final recentDepts = allDepts.take(5).toList();
+    final freshnessCutoff = DateTime.now().subtract(const Duration(days: 90));
+    final recentDepts = allDepts
+        .where((department) {
+          final date = department.lastUpdated ?? department.createdAt;
+          return date != null && date.isAfter(freshnessCutoff);
+        })
+        .take(5)
+        .toList();
     final showLoadingState = recentDepts.isEmpty &&
         (_showInitialRecentUpdatesPlaceholder || provider.isLoading);
 
     if (!showLoadingState && recentDepts.isEmpty) {
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
+      return SliverToBoxAdapter(child: _buildNoRecentUpdates(context));
     }
 
     return SliverToBoxAdapter(
@@ -669,6 +695,41 @@ class _HomeScreenState extends State<HomeScreen>
               ? _buildRecentlyUpdatedPlaceholder(context)
               : _buildRecentlyUpdatedContent(context, provider, recentDepts),
         ),
+      ),
+    );
+  }
+
+  Widget _buildNoRecentUpdates(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.32),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: colorScheme.surface.withValues(alpha: 0.72),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.update, color: colorScheme.primary, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No department updates were published in the last 90 days.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1026,71 +1087,84 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
             const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildQuickActionCard(
-                    context,
-                    icon: Icons.compare_arrows,
-                    title: 'Compare',
-                    subtitle: 'AI-powered insights',
-                    gradient: [
-                      const Color(0xFF667eea),
-                      const Color(0xFF764ba2),
-                    ],
-                    onTap: () {
-                      Navigator.push(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cardWidth = constraints.maxWidth >= 680
+                    ? (constraints.maxWidth - 24) / 3
+                    : (constraints.maxWidth - 12) / 2;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: cardWidth,
+                      child: _buildQuickActionCard(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const DepartmentCompareScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickActionCard(
-                    context,
-                    icon: Icons.favorite,
-                    title: 'Favorites',
-                    subtitle: 'Your saved items',
-                    gradient: [
-                      const Color(0xFFfa709a),
-                      const Color(0xFFfee140),
-                    ],
-                    onTap: () {
-                      Navigator.push(
+                        icon: Icons.compare_arrows,
+                        title: 'Compare',
+                        subtitle: 'AI-powered insights',
+                        gradient: [
+                          const Color(0xFF667eea),
+                          const Color(0xFF764ba2),
+                        ],
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const DepartmentCompareScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: cardWidth,
+                      child: _buildQuickActionCard(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const FavoritesScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQuickActionCard(
-                    context,
-                    icon: Icons.map_outlined,
-                    title: 'Near Me',
-                    subtitle: 'Agencies on map',
-                    gradient: [
-                      const Color(0xFF11998e),
-                      const Color(0xFF38ef7d),
-                    ],
-                    onTap: () {
-                      Navigator.push(
+                        icon: Icons.favorite,
+                        title: 'Favorites',
+                        subtitle: 'Your saved items',
+                        gradient: [
+                          const Color(0xFFfa709a),
+                          const Color(0xFFfee140),
+                        ],
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const FavoritesScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: constraints.maxWidth >= 680
+                          ? cardWidth
+                          : constraints.maxWidth,
+                      child: _buildQuickActionCard(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const MapScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+                        icon: Icons.map_outlined,
+                        title: 'Near Me',
+                        subtitle: 'Agencies on map',
+                        gradient: [
+                          const Color(0xFF11998e),
+                          const Color(0xFF38ef7d),
+                        ],
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const MapScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -1112,7 +1186,7 @@ class _HomeScreenState extends State<HomeScreen>
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -1139,7 +1213,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
                 child: Icon(icon, color: Colors.white, size: 24),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 title,
                 style: const TextStyle(
@@ -1147,8 +1221,7 @@ class _HomeScreenState extends State<HomeScreen>
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
               ),
               const SizedBox(height: 4),
               Text(
@@ -1157,8 +1230,7 @@ class _HomeScreenState extends State<HomeScreen>
                   color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 12,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
               ),
             ],
           ),
@@ -1521,13 +1593,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   child: IconButton(
                     icon: const Icon(Icons.arrow_back),
-                    onPressed: () {
-                      _searchController.clear();
-                      provider.clearFilters();
-                      setState(() {
-                        _showSearchResults = false;
-                      });
-                    },
+                    onPressed: _clearSearch,
                     tooltip: 'Back',
                   ),
                 ),
@@ -1556,13 +1622,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () {
-                    _searchController.clear();
-                    provider.clearFilters();
-                    setState(() {
-                      _showSearchResults = false;
-                    });
-                  },
+                  onPressed: _clearSearch,
                   icon: const Icon(Icons.clear, size: 18),
                   label: const Text('Clear'),
                   style: TextButton.styleFrom(
@@ -1586,6 +1646,7 @@ class _HomeScreenState extends State<HomeScreen>
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   child: DepartmentCard(
+                    compact: true,
                     department: department,
                     isFavorite: provider.isFavorite(department.id),
                     onFavoriteToggle: () =>

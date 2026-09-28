@@ -7,15 +7,14 @@ class OpenAIConfig {
       defaultValue:
           'https://us-central1-u-s-departments-and-age-gnkn5k.cloudfunctions.net/dreamopenaiproxy');
 
-  static const String gpt4oModel = 'gpt-4o';
-  static const String gpt4oMiniModel = 'gpt-4o-mini';
-  static const String o3MiniModel = 'o3-mini';
+  static const String fastModel = 'gpt-5.6-luna';
+  static const String qualityModel = 'gpt-5.6-terra';
 }
 
 class OpenAIService {
   static Future<String> chatCompletion({
     required List<Map<String, dynamic>> messages,
-    String model = OpenAIConfig.gpt4oModel,
+    String model = OpenAIConfig.qualityModel,
     double temperature = 0.7,
     int maxTokens = 1000,
     Map<String, dynamic>? responseFormat,
@@ -26,8 +25,9 @@ class OpenAIService {
       final requestBody = {
         'model': model,
         'messages': messages,
+        'reasoning_effort': 'none',
         'temperature': temperature,
-        'max_tokens': maxTokens,
+        'max_completion_tokens': maxTokens,
       };
 
       if (responseFormat != null) {
@@ -86,7 +86,7 @@ class OpenAIService {
 
     return await chatCompletion(
       messages: messages,
-      model: OpenAIConfig.gpt4oMiniModel,
+      model: OpenAIConfig.fastModel,
       temperature: 0.5,
       maxTokens: 300,
     );
@@ -127,7 +127,7 @@ class OpenAIService {
 
     return await chatCompletion(
       messages: messages,
-      model: OpenAIConfig.gpt4oModel,
+      model: OpenAIConfig.qualityModel,
       temperature: 0.6,
       maxTokens: 800,
     );
@@ -164,7 +164,7 @@ class OpenAIService {
 
     return await chatCompletion(
       messages: messages,
-      model: OpenAIConfig.gpt4oModel,
+      model: OpenAIConfig.qualityModel,
       temperature: 0.7,
       maxTokens: 600,
     );
@@ -184,7 +184,7 @@ class OpenAIService {
 
     return await chatCompletion(
       messages: messages,
-      model: OpenAIConfig.gpt4oModel,
+      model: OpenAIConfig.qualityModel,
       temperature: 0.7,
       maxTokens: 600,
     );
@@ -225,7 +225,7 @@ Rules:
 
     final rawResponse = await chatCompletion(
       messages: messages,
-      model: OpenAIConfig.gpt4oMiniModel,
+      model: OpenAIConfig.fastModel,
       temperature: 0.3,
       maxTokens: 400,
       responseFormat: {'type': 'json_object'},

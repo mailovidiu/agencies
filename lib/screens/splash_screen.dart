@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import 'open_ad_screen.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  final Future<void> initializationFuture;
+
+  const SplashScreen({
+    super.key,
+    required this.initializationFuture,
+  });
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -21,18 +25,18 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize animation controllers
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-    
+
     _scaleController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    
+
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
@@ -69,25 +73,30 @@ class _SplashScreenState extends State<SplashScreen>
   void _startAnimations() async {
     // Start animations with delays
     _fadeController.forward();
-    
+
     await Future.delayed(const Duration(milliseconds: 300));
     _scaleController.forward();
-    
+
     await Future.delayed(const Duration(milliseconds: 200));
     _slideController.forward();
-    
-    // Navigate to open ad screen after splash duration
-    Timer(const Duration(milliseconds: 3000), () {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const OpenAdScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 600),
-        ),
-      );
-    });
+
+    await Future.wait([
+      Future<void>.delayed(const Duration(milliseconds: 1800)),
+      widget.initializationFuture,
+    ]);
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const OpenAdScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: Duration.zero,
+      ),
+    );
   }
 
   @override
@@ -143,9 +152,11 @@ class _SplashScreenState extends State<SplashScreen>
                                 padding: const EdgeInsets.all(24),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: colorScheme.onPrimary.withValues(alpha: 0.2),
+                                  color: colorScheme.onPrimary
+                                      .withValues(alpha: 0.2),
                                   border: Border.all(
-                                    color: colorScheme.onPrimary.withValues(alpha: 0.3),
+                                    color: colorScheme.onPrimary
+                                        .withValues(alpha: 0.3),
                                     width: 2,
                                   ),
                                 ),
@@ -155,9 +166,9 @@ class _SplashScreenState extends State<SplashScreen>
                                   color: colorScheme.onPrimary,
                                 ),
                               ),
-                              
+
                               const SizedBox(height: 32),
-                              
+
                               // App title
                               Text(
                                 'Government',
@@ -167,13 +178,14 @@ class _SplashScreenState extends State<SplashScreen>
                                   letterSpacing: 1.2,
                                 ),
                               ),
-                              
+
                               const SizedBox(height: 8),
-                              
+
                               Text(
                                 'Departments & Agencies',
                                 style: theme.textTheme.titleLarge?.copyWith(
-                                  color: colorScheme.onPrimary.withValues(alpha: 0.9),
+                                  color: colorScheme.onPrimary
+                                      .withValues(alpha: 0.9),
                                   letterSpacing: 0.5,
                                 ),
                               ),
@@ -185,7 +197,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
               ),
-              
+
               // Bottom section with tagline and loading
               Expanded(
                 flex: 1,

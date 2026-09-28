@@ -12,7 +12,7 @@ class FavoritesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: const Text(
           'My Favorites',
@@ -21,11 +21,11 @@ class FavoritesScreen extends StatelessWidget {
             color: Colors.white,
           ),
         ),
-        backgroundColor: const Color(0xFF1565C0),
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -53,10 +53,10 @@ class FavoritesScreen extends StatelessWidget {
                     children: [
                       Text(
                         '${favoriteDepartments.length} Favorite${favoriteDepartments.length == 1 ? '' : 's'}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -81,8 +81,11 @@ class FavoritesScreen extends StatelessWidget {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: DepartmentCard(
                           department: department,
-                          isFavorite: true, // All departments here are favorites
-                          onFavoriteToggle: () => _toggleFavorite(context, department.id),
+                          compact: true,
+                          isFavorite:
+                              true, // All departments here are favorites
+                          onFavoriteToggle: () =>
+                              _toggleFavorite(context, department.id),
                           onTap: () => _onDepartmentTap(context, department),
                         ),
                       );
@@ -138,9 +141,10 @@ class FavoritesScreen extends StatelessWidget {
               icon: const Icon(Icons.explore),
               label: const Text('Explore Departments'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1565C0),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(25),
                 ),
@@ -155,7 +159,7 @@ class FavoritesScreen extends StatelessWidget {
   void _toggleFavorite(BuildContext context, String departmentId) {
     final provider = Provider.of<DepartmentProvider>(context, listen: false);
     provider.toggleFavorite(departmentId);
-    
+
     // Show feedback
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -167,8 +171,6 @@ class FavoritesScreen extends StatelessWidget {
 
   void _onDepartmentTap(BuildContext context, Department department) {
     // Navigate to department detail screen
-    final provider = Provider.of<DepartmentProvider>(context, listen: false);
-    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => DepartmentDetailScreen(

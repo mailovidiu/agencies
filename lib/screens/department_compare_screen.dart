@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -34,7 +36,7 @@ class _DepartmentCompareScreenState extends State<DepartmentCompareScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Compare Departments'),
+        title: const Text('Compare agencies'),
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
         actions: [
@@ -99,7 +101,7 @@ class _DepartmentCompareScreenState extends State<DepartmentCompareScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              '${_selectedDepartments.length} department${_selectedDepartments.length == 1 ? '' : 's'} selected',
+                              '${_selectedDepartments.length} selected',
                               style: textTheme.titleMedium?.copyWith(
                                 color: colorScheme.onPrimaryContainer,
                                 fontWeight: FontWeight.w600,
@@ -143,11 +145,11 @@ class _DepartmentCompareScreenState extends State<DepartmentCompareScreen> {
               // Comparison Result
               if (_comparisonResult != null)
                 Expanded(
-                  flex: 2,
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                     child: Card(
-                      child: Padding(
+                      clipBehavior: Clip.antiAlias,
+                      child: SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,68 +161,57 @@ class _DepartmentCompareScreenState extends State<DepartmentCompareScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'AI Comparison Result',
+                                    'AI comparison',
                                     style: textTheme.titleLarge?.copyWith(
                                       fontWeight: FontWeight.bold,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 IconButton(
                                   onPressed: () => _copyToClipboard(
                                       context, _comparisonResult!),
                                   icon: const Icon(Icons.copy),
-                                  tooltip: 'Copy',
+                                  tooltip: 'Copy comparison',
                                 ),
                                 IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _comparisonResult = null;
-                                    });
-                                  },
+                                  onPressed: () =>
+                                      setState(() => _comparisonResult = null),
                                   icon: const Icon(Icons.close),
-                                  tooltip: 'Close',
+                                  tooltip: 'Back to selection',
                                 ),
                               ],
                             ),
                             const SizedBox(height: 12),
-
-                            // Scrollable AI Result Content
-                            Expanded(
-                              child: SingleChildScrollView(
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.primaryContainer
-                                        .withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: colorScheme.primary
-                                            .withValues(alpha: 0.2)),
-                                  ),
-                                  child: SelectableText(
-                                    _comparisonResult!,
-                                    style: textTheme.bodyMedium
-                                        ?.copyWith(height: 1.5),
-                                  ),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer
+                                    .withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: colorScheme.primary
+                                      .withValues(alpha: 0.2),
                                 ),
                               ),
+                              child: _buildMarkdownComparison(
+                                context,
+                                _comparisonResult!,
+                              ),
                             ),
-
                             const SizedBox(height: 12),
-                            Row(
+                            Wrap(
+                              spacing: 8,
                               children: [
                                 TextButton.icon(
                                   onPressed: _compareSelected,
                                   icon: const Icon(Icons.refresh),
                                   label: const Text('Regenerate'),
                                 ),
-                                const SizedBox(width: 8),
                                 TextButton.icon(
-                                  onPressed: () => _shareComparison(),
-                                  icon: const Icon(Icons.share),
-                                  label: const Text('Share'),
+                                  onPressed: _shareComparison,
+                                  icon: const Icon(Icons.copy_all),
+                                  label: const Text('Copy all'),
                                 ),
                               ],
                             ),
@@ -231,158 +222,252 @@ class _DepartmentCompareScreenState extends State<DepartmentCompareScreen> {
                   ),
                 ),
 
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value.trim();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search departments and agencies',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: 'Clear search',
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                            },
-                          ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+              if (_comparisonResult == null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value.trim();
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search departments and agencies',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
-              ),
 
               // Department List
-              Expanded(
-                flex: _comparisonResult != null ? 1 : 3,
-                child: filteredDepartments.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.search_off,
-                                size: 48,
-                                color: colorScheme.outline,
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'No departments/agencies found for "$_searchQuery"',
-                                textAlign: TextAlign.center,
-                                style: textTheme.bodyMedium,
-                              ),
-                            ],
+              if (_comparisonResult == null)
+                Expanded(
+                  child: filteredDepartments.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.search_off,
+                                  size: 48,
+                                  color: colorScheme.outline,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No departments/agencies found for "$_searchQuery"',
+                                  textAlign: TextAlign.center,
+                                  style: textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: filteredDepartments.length,
-                        itemBuilder: (context, index) {
-                          final department = filteredDepartments[index];
-                          final isSelected =
-                              _selectedDepartments.contains(department);
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: filteredDepartments.length,
+                          itemBuilder: (context, index) {
+                            final department = filteredDepartments[index];
+                            final isSelected =
+                                _selectedDepartments.contains(department);
 
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              leading: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? colorScheme.primary
-                                      : colorScheme.primaryContainer,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  CategoryUtils.getIcon(department.category),
-                                  color: isSelected
-                                      ? colorScheme.onPrimary
-                                      : colorScheme.onPrimaryContainer,
-                                  size: 20,
-                                ),
-                              ),
-                              title: Text(
-                                department.name,
-                                style: textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    department.category.displayName,
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? colorScheme.primary
+                                        : colorScheme.primaryContainer,
+                                    shape: BoxShape.circle,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    department.description,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: textTheme.bodySmall,
+                                  child: Icon(
+                                    CategoryUtils.getIcon(department.category),
+                                    color: isSelected
+                                        ? colorScheme.onPrimary
+                                        : colorScheme.onPrimaryContainer,
+                                    size: 20,
                                   ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (department.isPopular)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange
-                                            .withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(8),
+                                ),
+                                title: Text(
+                                  department.name,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      department.category.displayName,
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.primary,
+                                        fontWeight: FontWeight.w500,
                                       ),
-                                      child: Text(
-                                        'Popular',
-                                        style: textTheme.bodySmall?.copyWith(
-                                          color: Colors.orange[700],
-                                          fontWeight: FontWeight.w600,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      department.description,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (department.isPopular)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange
+                                              .withValues(alpha: 0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          'Popular',
+                                          style: textTheme.bodySmall?.copyWith(
+                                            color: Colors.orange[700],
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
+                                    const SizedBox(width: 8),
+                                    Checkbox(
+                                      value: isSelected,
+                                      onChanged: (bool? value) {
+                                        _toggleDepartmentSelection(department);
+                                      },
                                     ),
-                                  const SizedBox(width: 8),
-                                  Checkbox(
-                                    value: isSelected,
-                                    onChanged: (bool? value) {
-                                      _toggleDepartmentSelection(department);
-                                    },
-                                  ),
-                                ],
+                                  ],
+                                ),
+                                onTap: () =>
+                                    _toggleDepartmentSelection(department),
+                                isThreeLine: true,
                               ),
-                              onTap: () =>
-                                  _toggleDepartmentSelection(department),
-                              isThreeLine: true,
-                            ),
-                          );
-                        },
-                      ),
-              ),
+                            );
+                          },
+                        ),
+                ),
             ],
           );
         },
       ),
     );
   }
+
+  Widget _buildMarkdownComparison(BuildContext context, String markdown) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final lines = markdown.split('\n');
+
+    return SelectionArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: lines.map((rawLine) {
+          final line = rawLine.trim();
+          if (line.isEmpty) {
+            return const SizedBox(height: 10);
+          }
+
+          if (line.startsWith('### ')) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 4),
+              child: Text(
+                _stripMarkdown(line.substring(4)),
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.primary,
+                ),
+              ),
+            );
+          }
+
+          if (line.startsWith('## ')) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 4),
+              child: Text(
+                _stripMarkdown(line.substring(3)),
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            );
+          }
+
+          if (line.startsWith('# ')) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 6),
+              child: Text(
+                _stripMarkdown(line.substring(2)),
+                style: textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            );
+          }
+
+          if (line.startsWith('- ') || line.startsWith('* ')) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 7),
+                    child: Icon(
+                      Icons.circle,
+                      size: 6,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _stripMarkdown(line.substring(2)),
+                      style: textTheme.bodyMedium?.copyWith(height: 1.5),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              _stripMarkdown(line),
+              style: textTheme.bodyMedium?.copyWith(height: 1.5),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  String _stripMarkdown(String text) =>
+      text.replaceAll(RegExp(r'\*\*|__|`'), '').trim();
 
   void _toggleDepartmentSelection(Department department) {
     setState(() {
@@ -429,8 +514,9 @@ class _DepartmentCompareScreenState extends State<DepartmentCompareScreen> {
               })
           .toList();
 
-      final comparison =
-          await OpenAIService.compareDepartments(departmentsData);
+      final comparison = await OpenAIService.compareDepartments(
+        departmentsData,
+      ).timeout(const Duration(seconds: 12));
 
       setState(() {
         _comparisonResult = comparison;
@@ -439,6 +525,20 @@ class _DepartmentCompareScreenState extends State<DepartmentCompareScreen> {
 
       // Scroll to show comparison result
       // The result will be visible after the selection banner
+    } on TimeoutException {
+      setState(() {
+        _isLoadingComparison = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'AI comparison is taking too long. Please try again.',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       setState(() {
         _isLoadingComparison = false;
